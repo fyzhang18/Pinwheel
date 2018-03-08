@@ -1,0 +1,1459 @@
+---
+title: "Pinwheels_Final_Analysis_Trials1-4"
+author: "Felicia Zhang"
+date: '2017-09-24'
+output: html_document
+---
+
+Only using trials 2-4 of each subblock
+No block 3
+```{r setup, include=FALSE}
+library(ggplot2) 
+library(zoo)
+library(reshape)
+library(plyr)
+library(scales) 
+library(data.table)
+library(signal)
+library(matrixStats)
+library(lme4)
+library(arm)
+library(wesanderson)
+
+#load preprocessed data
+#Oct21 has PUPIL_CORRECTED_2 calculated using 0-1500ms
+orig.sample <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_AllSamples_Nov28.csv") #Nov28 has trackloss % for all trials
+orig.sample2 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_RemovedOutliers_Nov28.csv")  #Nov28 has bad trials removed
+orig.sample$X <- NULL
+orig.sample2$X <- NULL
+orig.sample$X.1 <- NULL
+orig.sample2$X.1 <- NULL
+#breakdown of trial:
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+# = 3550 ms total
+
+#leftright = #1,3,5 = L, 2,4,6 = R
+#switch = 1 preswitch, 2 = postswitch
+#sublocks = 1:6
+#blocks = 1:3
+#lookattarget = 0 = distractor, 1 = target, 5 = center,
+#PUPIL_CORRECTED_2 calculated using 0-1500ms
+#PUPIL_CORRECTED calculated using 0-1750ms
+
+#REMOVE TRIALS 5-8 FOR EACH SUBBLOCK
+orig.sample$trialnum <- 0
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 1 | orig.sample$TRIAL_INDEX == 9 | orig.sample$TRIAL_INDEX == 17 | orig.sample$TRIAL_INDEX == 25 | orig.sample$TRIAL_INDEX == 33 | orig.sample$TRIAL_INDEX == 41] <- 1
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 2 | orig.sample$TRIAL_INDEX == 10 | orig.sample$TRIAL_INDEX == 18 | orig.sample$TRIAL_INDEX == 26 | orig.sample$TRIAL_INDEX == 34 | orig.sample$TRIAL_INDEX == 42] <- 2
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 3 | orig.sample$TRIAL_INDEX == 11 | orig.sample$TRIAL_INDEX == 19 | orig.sample$TRIAL_INDEX == 27 | orig.sample$TRIAL_INDEX == 35 | orig.sample$TRIAL_INDEX == 43] <- 3
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 4 | orig.sample$TRIAL_INDEX == 12 | orig.sample$TRIAL_INDEX == 20 | orig.sample$TRIAL_INDEX == 28 | orig.sample$TRIAL_INDEX == 36 | orig.sample$TRIAL_INDEX == 44] <- 4
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 5 | orig.sample$TRIAL_INDEX == 13 | orig.sample$TRIAL_INDEX == 21 | orig.sample$TRIAL_INDEX == 29 | orig.sample$TRIAL_INDEX == 37 | orig.sample$TRIAL_INDEX == 45] <- 5
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 6 | orig.sample$TRIAL_INDEX == 14 | orig.sample$TRIAL_INDEX == 22 | orig.sample$TRIAL_INDEX == 30 | orig.sample$TRIAL_INDEX == 38 | orig.sample$TRIAL_INDEX == 46] <- 6
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 7 | orig.sample$TRIAL_INDEX == 15 | orig.sample$TRIAL_INDEX == 23 | orig.sample$TRIAL_INDEX == 31 | orig.sample$TRIAL_INDEX == 39 | orig.sample$TRIAL_INDEX == 47] <- 7
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 8 | orig.sample$TRIAL_INDEX == 16 | orig.sample$TRIAL_INDEX == 24 | orig.sample$TRIAL_INDEX == 32 | orig.sample$TRIAL_INDEX == 40 | orig.sample$TRIAL_INDEX == 48] <- 8
+
+orig.sample2$trialnum <- 0
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 1 | orig.sample2$TRIAL_INDEX == 9 | orig.sample2$TRIAL_INDEX == 17 | orig.sample2$TRIAL_INDEX == 25 | orig.sample2$TRIAL_INDEX == 33 | orig.sample2$TRIAL_INDEX == 41] <- 1
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 2 | orig.sample2$TRIAL_INDEX == 10 | orig.sample2$TRIAL_INDEX == 18 | orig.sample2$TRIAL_INDEX == 26 | orig.sample2$TRIAL_INDEX == 34 | orig.sample2$TRIAL_INDEX == 42] <- 2
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 3 | orig.sample2$TRIAL_INDEX == 11 | orig.sample2$TRIAL_INDEX == 19 | orig.sample2$TRIAL_INDEX == 27 | orig.sample2$TRIAL_INDEX == 35 | orig.sample2$TRIAL_INDEX == 43] <- 3
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 4 | orig.sample2$TRIAL_INDEX == 12 | orig.sample2$TRIAL_INDEX == 20 | orig.sample2$TRIAL_INDEX == 28 | orig.sample2$TRIAL_INDEX == 36 | orig.sample2$TRIAL_INDEX == 44] <- 4
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 5 | orig.sample2$TRIAL_INDEX == 13 | orig.sample2$TRIAL_INDEX == 21 | orig.sample2$TRIAL_INDEX == 29 | orig.sample2$TRIAL_INDEX == 37 | orig.sample2$TRIAL_INDEX == 45] <- 5
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 6 | orig.sample2$TRIAL_INDEX == 14 | orig.sample2$TRIAL_INDEX == 22 | orig.sample2$TRIAL_INDEX == 30 | orig.sample2$TRIAL_INDEX == 38 | orig.sample2$TRIAL_INDEX == 46] <- 6
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 7 | orig.sample2$TRIAL_INDEX == 15 | orig.sample2$TRIAL_INDEX == 23 | orig.sample2$TRIAL_INDEX == 31 | orig.sample2$TRIAL_INDEX == 39 | orig.sample2$TRIAL_INDEX == 47] <- 7
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 8 | orig.sample2$TRIAL_INDEX == 16 | orig.sample2$TRIAL_INDEX == 24 | orig.sample2$TRIAL_INDEX == 32 | orig.sample2$TRIAL_INDEX == 40 | orig.sample2$TRIAL_INDEX == 48] <- 8
+
+#removing sub 24, trialnum 4
+orig.sample <- orig.sample[-c(1107385:1108392), ]
+orig.sample2 <- orig.sample2[-c(553356:554026), ]
+
+orig.sample3 <- subset(orig.sample, trialnum < 5)
+orig.sample4 <- subset(orig.sample2, trialnum < 5)
+
+#orig.sample = all trials
+#orig.sample2 = trials with more than 50% looking
+#orig.sample3 = orig.sample but only trials 1-4 of each subblock
+#orig.sample4 = orig.sample2 but only trials 1-4 of each subblock
+```
+
+Subject summary graphs - with raw data
+1. number of trials completed per subject
+2. percent looking for each subject
+3. percent looking across the trials
+```{r }
+#1. number of trials completed per subject
+numtrials.sub <- ddply(orig.sample3,.(RECORDING_SESSION_LABEL,subID),summarise,trackloss=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+
+ggplot(numtrials.sub,aes(x=factor(subID),y=trackloss))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Number of trials completed per subject")+
+  labs(x = "Subject ID", y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(limits=c(0,48),breaks=seq(0,48,6))
+
+#2. percent looking for each subject
+Plooking.sub <- ddply(orig.sample3,.(RECORDING_SESSION_LABEL,TRIAL_INDEX,subID),summarise,trackloss=mean(trackloss,na.rm = TRUE))  
+Plooking.sub$percentlooking <- 1 - Plooking.sub$trackloss
+
+Plooking.sub2 <- ddply(Plooking.sub,.(RECORDING_SESSION_LABEL,subID),summarise,meanLooking=mean(percentlooking,na.rm = TRUE),seLooking=sd(percentlooking, na.rm = TRUE)/sqrt(length(percentlooking)))  #collapse across trials
+
+ggplot(Plooking.sub2,aes(x=factor(subID),y=meanLooking))+
+    theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Looking percentage per subject")+
+  labs(x = "Subject ID", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  geom_hline(yintercept = mean(Plooking.sub2$meanLooking), size =1,color = "red")
+
+#3. percent looking across the trials
+Plooking.trial <- ddply(Plooking.sub,.(TRIAL_INDEX),summarise,meanLooking=mean(percentlooking,na.rm = TRUE),seLooking=sd(percentlooking, na.rm = TRUE)/sqrt(length(percentlooking)))  #collapse across subjects
+Plooking.trial <- subset(Plooking.trial, TRIAL_INDEX < 49)
+
+ggplot(Plooking.trial,aes(x=TRIAL_INDEX,y=meanLooking))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Looking percentage per trial")+
+  labs(x = "Trial Num", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_x_continuous(limits=c(0,50),breaks=seq(0,50,4), expand = c(0, 0))+
+  geom_hline(yintercept = mean(Plooking.trial$meanLooking), size =1,color = "red")
+
+```
+
+Looking at different exclusion criterias
+``` {r}
+#how many trials do we exclude per subject if we do < 50% looking
+Plooking.sub$remove50 <- 0
+Plooking.sub$remove50[Plooking.sub$percentlooking < 0.5] <- 1 #1 = remove
+Plooking50 <- ddply(Plooking.sub,.(subID),summarise,trialsremove=sum(remove50,na.rm = TRUE))
+trialsremove50 <- sum(Plooking50$trialsremove)
+
+ggplot(Plooking50,aes(x=factor(subID),y=trialsremove))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Trials with < 50% looking")+
+  labs(x = "Subject", y = "Number of Trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(limits=c(0,48),breaks=seq(0,48,4))+
+  geom_hline(yintercept = mean(Plooking50$trialsremove), size =1,color = "red")+
+  geom_text(aes(label=trialsremove), vjust=0)
+
+#% of trials that we removed per subject 
+Plooking50.a <- ddply(Plooking.sub,.(subID),summarise,trialscompleted=max(TRIAL_INDEX))
+Plooking50.a$trialsremove <- Plooking50$trialsremove
+Plooking50.a$percentremove <- Plooking50.a$trialsremove/Plooking50.a$trialscompleted
+  
+ggplot(Plooking50.a,aes(x=factor(subID),y=percentremove))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("% of trials removed (with < 50% looking)")+
+  labs(x = "Subject", y = "Percent")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  geom_hline(yintercept = mean(Plooking50.a$percentremove), size =1,color = "red")
+
+# how many trials do we exclude per subject if we do < 25% looking
+Plooking.sub$remove75 <- 0
+Plooking.sub$remove75[Plooking.sub$percentlooking < 0.25] <- 1
+
+Plooking75 <- ddply(Plooking.sub,.(subID),summarise,trialsremove=sum(remove75,na.rm = TRUE))
+trialsremove75 <- sum(Plooking75$trialsremove)
+
+ggplot(Plooking75,aes(x=factor(subID),y=trialsremove))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Trials with < 25% looking")+
+  labs(x = "Subject", y = "Number of Trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(limits=c(0,48),breaks=seq(0,48,4))+
+  geom_hline(yintercept = mean(Plooking75$trialsremove), size =1,color = "red")+
+  geom_text(aes(label=trialsremove), vjust=0)
+
+#percent looking for each subject after removing trials with less than 50% looking
+Plooking.sub2 <- subset(Plooking.sub, percentlooking > 0.499)
+Plooking.sub3 <- ddply(Plooking.sub2,.(subID,TRIAL_INDEX,subID),summarise,percentlookingSs=mean(percentlooking,na.rm = TRUE))  
+
+Plooking.sub4 <- ddply(Plooking.sub3,.(subID,subID),summarise,meanLooking=mean(percentlookingSs,na.rm = TRUE),seLooking=sd(percentlookingSs, na.rm = TRUE)/sqrt(length(percentlookingSs)))  #collapse across trials
+
+ggplot(Plooking.sub4,aes(x=factor(subID),y=meanLooking))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Looking percentage per subject (after removing trials with < 50% looking)")+
+  labs(x = "Subject ID", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  geom_hline(yintercept = mean(Plooking.sub4$meanLooking), size =1,color = "red")
+
+```
+
+Time course plot (% looking at target location)
+Another way to look at this is to plot proportion of looks to target on y axis and time on the x axis. Given these counts, we'll see AEMs as a rise in looks to the target prior to target onset.
+```{r}
+#orig.sample4 file already has Removed trials with less than 50% looking 
+poo <- orig.sample8
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+#total time = 3550ms (round to 3500ms)
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),timecode=numeric(),lookingattarget=numeric())
+subs <- unique(poo$subID)
+time <- seq(100,4000, by=100) #the time bins we are trying to create (0-4000ms) doing 4000ms bc s
+
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+  #gets all sample for 1 trial  
+  woo <- subset(poo, subID==subs[j] & TRIAL_INDEX == trials[i])
+  c <- woo$block[1]
+  for (k in 1:length(time)){
+    #for every 25 sample/100 ms, get lookattarget column
+    if (k==1) {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1] #gets 0-100ms
+    d <- unique(target)
+    dd <- which(d==1)
+    } else {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1 & woo$TIMECODE > time[k-1]-1]
+    d <- unique(target)
+    dd <- which(d==1)
+    }
+    #see if entire chunk is looking at target
+    if (length(target)==0) { #no samples collected during this time
+    aa <- c(subs[j],trials[i],c,time[k],99)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==1) { #looking at target entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==0) { #looking at distractor entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==5) { #looking at center entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d) > 1 & length(dd) < 1) { #not looking at same location and not looking at target (looking at distractor and center)
+    aa <- c(subs[j],trials[i],c,time[k],9)   
+    moo <- rbind(moo,aa) 
+    warnings()
+    } else { #not looking at same location and but looking at target sometimes
+    #calculate proportion looking  
+    b <- length(which(target==1)) #samples where subs are looking at target
+    bb <- length(which(target==1))/length(target) #looking at target/25
+    aa <- c(subs[j],trials[i],c,time[k],bb) 
+    moo <- rbind(moo,aa)
+    warnings()
+    }}}}
+
+names(moo)[1] <- "subID"
+names(moo)[2] <- "trialnum"
+names(moo)[3] <- "block"
+names(moo)[4] <- "timecode"
+names(moo)[5] <- "lookattarget"
+#0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
+
+poo.bin <- subset(moo, lookattarget < 9) #removing bins with no good samples, and looking at distractor and center within 100ms
+poo.bin$switch <- 0
+poo.bin$switch[poo.bin$trialnum < 9] <- 1
+poo.bin$switch[poo.bin$trialnum > 8 & poo.bin$trialnum < 17] <- 2
+poo.bin$switch[poo.bin$trialnum > 16 & poo.bin$trialnum < 25] <- 1
+poo.bin$switch[poo.bin$trialnum > 24 & poo.bin$trialnum < 33] <- 2
+poo.bin$switch[poo.bin$trialnum > 32 & poo.bin$trialnum < 41] <- 1
+poo.bin$switch[poo.bin$trialnum > 40] <- 2
+
+#Calculate proplooking for each type of gaze (target, center, distractor)
+poo.bin$center <- 0
+poo.bin$distractor <- 0
+poo.bin$target <- 0  
+
+poo.bin$target[poo.bin$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+poo.bin$target[poo.bin$lookattarget > 0 & poo.bin$lookattarget < 1] <- 1 #if lookattarget is decimal, then also looking at target
+poo.bin$center[poo.bin$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+poo.bin$distractor[poo.bin$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
+
+poo.bin$TargProp <- poo.bin$target / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$CentProp <- poo.bin$center / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$DistProp <- poo.bin$distractor / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+
+#PLOT, % look to target location
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+
+#splitting it for pre vs post switch, 2 lines, for each location
+goo <- ddply(poo.bin,.(subID, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanCenterSs=mean(CentProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE))
+
+gooA <- ddply(goo,.(timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanCenter=mean(meanCenterSs,na.rm = TRUE),seCenter=sd(meanCenterSs, na.rm = TRUE)/sqrt(length(meanCenterSs)),meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects     
+
+vlines <- c(250,1750,2550)
+ggplot(gooA,aes(x=timecode,y=meanTarget,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("% looks to target location")+
+  labs(x = "Time", y = "% looks to target location")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanTarget-seTarget,ymax=meanTarget+seTarget),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+scale_fill_discrete(name="Block",breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+guides(color=FALSE)
+
+vlines <- c(250,1750,2550)
+ggplot(gooA,aes(x=timecode,y=meanCenter,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("% looks to center location")+
+  labs(x = "Time", y = "% looks to center location")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanCenter-seCenter,ymax=meanCenter+seCenter),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+scale_fill_discrete(name="Block",breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+guides(color=FALSE)
+
+vlines <- c(250,1750,2550)
+ggplot(gooA,aes(x=timecode,y=meanDistractor,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("% looks to distractor location")+
+  labs(x = "Time", y = "% looks to distractor location")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanDistractor-seDistractor,ymax=meanDistractor+seDistractor),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+scale_fill_discrete(name="Block",breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+guides(color=FALSE)
+
+#now splitting it into 2 graphs, preswitch and post switch
+goo <- ddply(poo.bin,.(subID, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanCenterSs=mean(CentProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE))
+gooA <- ddply(goo,.(timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanCenter=mean(meanCenterSs,na.rm = TRUE),seCenter=sd(meanCenterSs, na.rm = TRUE)/sqrt(length(meanCenterSs)),meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects  
+
+goo.T <- gooA[,1:4]
+goo.C <- gooA[,c(1,2,5,6)]
+goo.D <- gooA[,c(1,2,7,8)]
+goo.T$location <- 1
+goo.C$location <- 5
+goo.D$location <- 0
+names(goo.T)[3] <- "meanLook"
+names(goo.T)[4] <- "SELook"
+names(goo.C)[3] <- "meanLook"
+names(goo.C)[4] <- "SELook"
+names(goo.D)[3] <- "meanLook"
+names(goo.D)[4] <- "SELook"
+
+goo2 <- rbind(goo.T, goo.C, goo.D)
+
+split <- c(`1` = "PreSwitch",`2` = "PostSwitch")
+vlines <- c(250,1750,2550)
+
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(location),fill=factor(location)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("0","1","5"),labels=c("Distractor", "Target","Center"))+guides(color=FALSE)+facet_wrap(~switch,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=14))
+
+split <- c(`0` = "Distractor",`1` = "Target",`5` = "Center")
+vlines <- c(250,1750,2550)
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("1","2"),labels=c("Preswitch", "Postswitch"))+guides(color=FALSE)+facet_wrap(~location, dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))
+
+#take out center looks (just looking at T/T+D for pre-switch vs. post-switch blocks)
+
+poo.bin2 <- subset(poo.bin, center==0) #removing center looks
+
+poo.bin2$TargProp <- poo.bin2$target / (poo.bin2$target+poo.bin2$distractor)
+poo.bin2$DistProp <- poo.bin2$distractor / (poo.bin2$target+poo.bin2$distractor)
+
+goo <- ddply(poo.bin2,.(subID, block, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE)) #collpase across trials
+goo$add <- goo$meanTargetSs + goo$meanDistractorSs
+
+gooA <- ddply(goo,.(timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects  
+gooA$add <- gooA$meanTarget + gooA$meanDistractor
+
+goo.T <- gooA[,1:4]
+goo.D <- gooA[,c(1,2,5,6)]
+goo.T$location <- 1
+goo.D$location <- 0
+names(goo.T)[3] <- "meanLook"
+names(goo.T)[4] <- "SELook"
+names(goo.D)[3] <- "meanLook"
+names(goo.D)[4] <- "SELook"
+
+goo2 <- rbind(goo.T, goo.D)
+
+split <- c(`1` = "PreSwitch",`2` = "PostSwitch")
+vlines <- c(250,1750,2550)
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(location),fill=factor(location)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("0","1"),labels=c("Distractor", "Target"))+guides(color=FALSE)+facet_wrap(~switch,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=14))
+
+split <- c(`0` = "Distractor",`1` = "Target")
+vlines <- c(250,1750,2550)
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("1","2"),labels=c("PreSwitch", "PostSwitch"))+guides(color=FALSE)+facet_wrap(~location,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=14))
+
+#just plot looking to target for the 2 blocks
+goo <- ddply(poo.bin,.(subID, block, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE))
+
+gooA <- ddply(goo,.(block, timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs))) #collapse across subjects   
+
+vlines <- c(250,1750,2550)
+ggplot(gooA,aes(x=timecode,y=meanTarget))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Percent Looking @ Target")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=meanTarget-seTarget,ymax=meanTarget+seTarget),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+facet_wrap(~block)+
+  theme(strip.text = element_text(size=14))
+```
+
+Do stats on the center target and see where pre switch and post switch are different, and use the parts where they’re the same to calculate baseline
+```{r}
+#breakdown of trial:
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+# = 3550 ms total
+poo <- orig.sample4
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+#total time = 3550ms (round to 3500ms)
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),timecode=numeric(),lookingattarget=numeric())
+subs <- unique(poo$subID)
+time <- seq(100,4000, by=100) #the time bins we are trying to create (0-4000ms) doing 4000ms bc s
+
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+  #gets all sample for 1 trial  
+  woo <- subset(poo, subID==subs[j] & TRIAL_INDEX == trials[i])
+  for (k in 1:length(time)){
+    #for every 25 sample/100 ms, get lookattarget column
+    if (k==1) {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1] #gets 0-100ms
+    d <- unique(target)
+    dd <- which(d==1)
+    } else {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1 & woo$TIMECODE > time[k-1]-1]
+    d <- unique(target)
+    dd <- which(d==1)
+    }
+    #see if entire chunk is looking at target
+    if (length(target)==0) { #no samples collected during this time
+    aa <- c(subs[j],trials[i],time[k],99)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==1) { #looking at target entire time
+    aa <- c(subs[j],trials[i],time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==0) { #looking at distractor entire time
+    aa <- c(subs[j],trials[i],time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==5) { #looking at center entire time
+    aa <- c(subs[j],trials[i],time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d) > 1 & length(dd) < 1) { #not looking at same location and not looking at target (looking at distractor and center)
+    aa <- c(subs[j],trials[i],time[k],9)   
+    moo <- rbind(moo,aa) 
+    warnings()
+    } else { #not looking at same location and but looking at target sometimes
+    #calculate proportion looking  
+    b <- length(which(target==1)) #samples where subs are looking at target
+    bb <- length(which(target==1))/length(target) #looking at target/25
+    aa <- c(subs[j],trials[i],time[k],bb) 
+    moo <- rbind(moo,aa)
+    warnings()
+    }}}}
+
+names(moo)[1] <- "subID"
+names(moo)[2] <- "trialnum"
+names(moo)[3] <- "timecode"
+names(moo)[4] <- "lookattarget"
+#0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
+
+poo.bin <- subset(moo, lookattarget < 9) #removing bins with no good samples, and looking at distractor and center within 100ms
+poo.bin$switch <- 0
+poo.bin$switch[poo.bin$trialnum < 9] <- 1
+poo.bin$switch[poo.bin$trialnum > 8 & poo.bin$trialnum < 17] <- 2
+poo.bin$switch[poo.bin$trialnum > 16 & poo.bin$trialnum < 25] <- 1
+poo.bin$switch[poo.bin$trialnum > 24 & poo.bin$trialnum < 33] <- 2
+poo.bin$switch[poo.bin$trialnum > 32 & poo.bin$trialnum < 41] <- 1
+poo.bin$switch[poo.bin$trialnum > 40] <- 2
+
+#Calculate proplooking for each type of gaze (target, center, distractor)
+poo.bin$center <- 0
+poo.bin$distractor <- 0
+poo.bin$target <- 0  
+
+poo.bin$target[poo.bin$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+poo.bin$target[poo.bin$lookattarget > 0 & poo.bin$lookattarget < 1] <- 1 #if lookattarget is decimal, then also looking at target
+poo.bin$center[poo.bin$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+poo.bin$distractor[poo.bin$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
+
+poo.bin$TargProp <- poo.bin$target / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$CentProp <- poo.bin$center / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$DistProp <- poo.bin$distractor / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+
+#now splitting it into 2 graphs, preswitch and post switch
+goo <- ddply(poo.bin,.(subID, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanCenterSs=mean(CentProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE))
+goo.center <- subset(goo, timecode < 1751)
+goo.center$meanTargetSs <- NULL
+goo.center$meanDistractorSs <- NULL
+
+pre <- subset(goo.center, switch==1)
+pre <- subset(pre, subID !=22)
+pre <- subset(pre, subID !=27)
+pre <- subset(pre, subID !=30)
+
+#ours is unbalanced (meaning not the same number of observation for each time) so make it balanced
+#remove sub 22, 27, 30
+
+newData1 <- data.frame(subID = "3", timecode = "700", switch = "1", meanCenterSs = "0")
+newData2 <- data.frame(subID = "3", timecode = "800", switch = "1", meanCenterSs = "0")
+newData3 <- data.frame(subID = "29", timecode = "600", switch = "1", meanCenterSs = "0")
+newData4 <- data.frame(subID = "29", timecode = "800", switch = "1", meanCenterSs = "0")
+
+pre <- rbind( pre[1:40,], newData1, pre[41:523,] )
+pre <- rbind( pre[1:41,], newData2, pre[42:524,] )
+pre <- rbind( pre[1:447,], newData3, pre[448:525,] )
+pre <- rbind( pre[1:449,], newData4, pre[450:526,] )
+
+pre$meanCenterSs <- as.numeric(pre$meanCenterSs)
+
+post <- subset(goo.center, switch==2)
+post <- subset(post, subID !=22)
+post <- subset(post, subID !=27)
+post <- subset(post, subID !=30)
+
+newData1 <- data.frame(subID = "14", timecode = "600", switch = "2", meanCenterSs = "0")
+newData2 <- data.frame(subID = "14", timecode = "700", switch = "2", meanCenterSs = "0")
+newData3 <- data.frame(subID = "14", timecode = "800", switch = "2", meanCenterSs = "0")
+newData4 <- data.frame(subID = "16", timecode = "200", switch = "2", meanCenterSs = "0")
+newData5 <- data.frame(subID = "16", timecode = "400", switch = "2", meanCenterSs = "0")
+newData6 <- data.frame(subID = "16", timecode = "500", switch = "2", meanCenterSs = "0")
+newData7 <- data.frame(subID = "16", timecode = "600", switch = "2", meanCenterSs = "0")
+newData8 <- data.frame(subID = "29", timecode = "100", switch = "2", meanCenterSs = "0")
+newData9 <- data.frame(subID = "29", timecode = "200", switch = "2", meanCenterSs = "0")
+newData10 <- data.frame(subID = "29", timecode = "300", switch = "2", meanCenterSs = "0")
+newData11 <- data.frame(subID = "29", timecode = "600", switch = "2", meanCenterSs = "0")
+newData12 <- data.frame(subID = "29", timecode = "700", switch = "2", meanCenterSs = "0")
+newData13 <- data.frame(subID = "29", timecode = "800", switch = "2", meanCenterSs = "0")
+newData14 <- data.frame(subID = "29", timecode = "900", switch = "2", meanCenterSs = "0")
+newData15 <- data.frame(subID = "29", timecode = "1000", switch = "2", meanCenterSs = "0")
+newData16 <- data.frame(subID = "29", timecode = "1100", switch = "2", meanCenterSs = "0")
+newData17 <- data.frame(subID = "29", timecode = "1200", switch = "2", meanCenterSs = "0")
+
+post <- rbind(post[1:226,], newData1, post[227:510,])
+post <- rbind(post[1:227,], newData2, post[228:511,])
+post <- rbind(post[1:228,], newData3, post[229:512,])
+post <- rbind(post[1:256,], newData4, post[257:513,])
+post <- rbind(post[1:258,], newData5, post[259:514,])
+post <- rbind(post[1:259,], newData6, post[260:515,])
+post <- rbind(post[1:260,], newData7, post[261:516,])
+post <- rbind(post[1:442,], newData8, post[443:517,])
+post <- rbind(post[1:443,], newData9, post[444:518,])
+post <- rbind(post[1:444,], newData10, post[445:519,])
+post <- rbind(post[1:447,], newData11, post[448:520,])
+post <- rbind(post[1:448,], newData12, post[449:521,])
+post <- rbind(post[1:449,], newData13, post[450:522,])
+post <- rbind(post[1:450,], newData14, post[451:523,])
+post <- rbind(post[1:451,], newData15, post[452:524,])
+post <- rbind(post[1:452,], newData16, post[453:525,])
+post <- rbind(post[1:453,], newData17, post[454:526,])
+post$meanCenterSs <- as.numeric(post$meanCenterSs)
+
+#REPEATED MEASURES ANOVA to see at which time points are different / same
+goo.center3 <- rbind(pre,post)
+names(goo.center3)[4] <- "look"
+#does this mean i have to do 17 anovas????????????? i think i do
+aov1 <- subset(goo.center3, timecode==100)
+aov2 <- subset(goo.center3, timecode==200)
+aov3 <- subset(goo.center3, timecode==300)
+aov4 <- subset(goo.center3, timecode==400)
+aov5 <- subset(goo.center3, timecode==500)
+aov6 <- subset(goo.center3, timecode==600)
+aov7 <- subset(goo.center3, timecode==700)
+aov8 <- subset(goo.center3, timecode==800)
+aov9 <- subset(goo.center3, timecode==900)
+aov10 <- subset(goo.center3, timecode==1000)
+aov11 <- subset(goo.center3, timecode==1100)
+aov12 <- subset(goo.center3, timecode==1200)
+aov13 <- subset(goo.center3, timecode==1300)
+aov14 <- subset(goo.center3, timecode==1400)
+aov15 <- subset(goo.center3, timecode==1500)
+aov16 <- subset(goo.center3, timecode==1600)
+aov17 <- subset(goo.center3, timecode==1700)
+
+summary(aov(look ~ switch + Error(subID), data=aov1))
+summary(aov(look ~ switch + Error(subID), data=aov2))
+summary(aov(look ~ switch + Error(subID), data=aov3))
+summary(aov(look ~ switch + Error(subID), data=aov4))
+summary(aov(look ~ switch + Error(subID), data=aov5))
+summary(aov(look ~ switch + Error(subID), data=aov6))
+summary(aov(look ~ switch + Error(subID), data=aov7))
+summary(aov(look ~ switch + Error(subID), data=aov8))
+summary(aov(look ~ switch + Error(subID), data=aov9))
+summary(aov(look ~ switch + Error(subID), data=aov10))
+summary(aov(look ~ switch + Error(subID), data=aov11))
+summary(aov(look ~ switch + Error(subID), data=aov12))
+summary(aov(look ~ switch + Error(subID), data=aov13))
+summary(aov(look ~ switch + Error(subID), data=aov14))
+summary(aov(look ~ switch + Error(subID), data=aov15)) # p = 0.0136
+summary(aov(look ~ switch + Error(subID), data=aov16)) # p = 0.0075
+summary(aov(look ~ switch + Error(subID), data=aov17)) # p = 0.0282
+
+#so from timepoint 1500 there's sig difference
+
+#plot
+goo4 <- ddply(goo.center3,.(timecode,switch),summarise,babylooking=mean(look,na.rm = TRUE),selooking=sd(look, na.rm = TRUE)/sqrt(length(look)))
+goo4$timecode <- as.numeric(goo4$timecode)
+goo4$babylooking <- as.numeric(goo4$babylooking)
+
+ggplot(goo4,aes(x=timecode,y=babylooking,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Percent looking to center")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=babylooking-selooking,ymax=babylooking+selooking),alpha=0.4)+
+  scale_x_continuous(limits=c(0,1800),breaks=seq(0,1800,200), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("1","2"),labels=c("PreSwitch", "PostSwitch"))+guides(color=FALSE)+geom_vline(xintercept = 1500)
+
+```
+
+
+X and Y coordinate for each trial and each subject 
+This would produce a scatterplot with 480 points (10 subjects * 48 trials). 
+Color code per subject
+#breakdown of trial:
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+# = 3550 ms total
+```{r}
+id.label <- data.frame(recordingsessionlabel=numeric(34),subID=numeric(34))
+id.label$recordingsessionlabel <- unique(poo$RECORDING_SESSION_LABEL)
+id.label$subID <- unique(poo$subID)
+
+#If you subset the data by what time it is in each trial (i.e., make one scatterplot for looks during center stimulus and one scatterplot for looks during target stimulus) we should see a cluster of points near center during the center stimulus, and two clusters of points on either side during the target stimulus. 
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+
+#center stimulus
+hoo1 <- subset(poo, TIMECODE > 250 & TIMECODE < 1751)
+#calculation avg gaze x and gaze y position during that period
+doo <- ddply(hoo1,.(subID,TRIAL_INDEX),summarise,meanY=mean(RIGHT_GAZE_Y,na.rm = TRUE),meanX=mean(RIGHT_GAZE_X,na.rm = TRUE)) 
+ggplot(doo,aes(x=meanX,y=meanY,color=factor(subID),fill=factor(subID)))+
+  geom_point()+ggtitle("Gaze position per baby per trial during fixation on (250-1750ms)")+
+  labs(x = "X coordinate", y = "Y coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_continuous(limits=c(0,1280),breaks=seq(0,1280,300),position="top")+
+  scale_y_reverse(limits = c(1024, 0))
+
+#target stimulus
+hoo2 <- subset(poo, TIMECODE > 2550 & TIMECODE < 3551)
+#calculation avg gaze x and gaze y position during that period
+doo <- ddply(hoo2,.(subID,TRIAL_INDEX),summarise,meanY=mean(RIGHT_GAZE_Y,na.rm = TRUE),meanX=mean(RIGHT_GAZE_X,na.rm = TRUE)) 
+ggplot(doo,aes(x=meanX,y=meanY,color=factor(subID),fill=factor(subID)))+
+  geom_point()+ggtitle("Gaze position per baby per trial during target on (2550-3550ms)")+
+  labs(x = "X coordinate", y = "Y coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_continuous(limits=c(0,1280),breaks=seq(0,1280,300),position="top")+
+  scale_y_reverse(limits = c(1024, 0))
+
+#target stimulus v2: constrain to 3000-3500 ms to see if there are clearer clustters
+hoo2 <- subset(poo, TIMECODE > 2999 & TIMECODE < 3501)
+#calculation avg gaze x and gaze y position during that period
+doo <- ddply(hoo2,.(subID,TRIAL_INDEX),summarise,meanY=mean(RIGHT_GAZE_Y,na.rm = TRUE),meanX=mean(RIGHT_GAZE_X,na.rm = TRUE)) 
+ggplot(doo,aes(x=meanX,y=meanY,color=factor(subID),fill=factor(subID)))+
+  geom_point()+ggtitle("Gaze position per baby per trial during target on (3000-3500)")+
+  labs(x = "X coordinate", y = "Y coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_continuous(limits=c(0,1280),breaks=seq(0,1280,300),position="top")+
+  scale_y_reverse(limits = c(1024, 0))
+
+```
+
+Check for each subject the max number of trials they completed
+```{r}
+for (j in 1:length(subs)) {
+  trials <- unique(orig.sample3$TRIAL_INDEX[orig.sample3$subID==subs[j]])
+  print(c(subs[j],length(trials)))
+}
+
+```
+
+BREAKDOWN OF TRIALS
+1. LOOK AT FIXATION TO CENTER
+
+```{r}
+#dimensions of screen are 1280 x 1024, dividing into 3 columns
+targetx1 <-426
+targetx2 <-854
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+
+#check if gaze x and gaze y are within the dimensions set
+subs <- unique(poo$subID)
+fixations <- data.frame(subID= numeric(0), trialnum=  numeric(0), lookedatcenter = numeric(0))
+for (j in 1:length(subs)) {
+  #for each subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    #for each trial, how many are looking at center at start of trial during first 1750ms?
+    goodx <- which(poo$RIGHT_GAZE_X[poo$TRIAL_INDEX==i & poo$subID==subs[j] & poo$TIMECODE < 1751] > targetx1 & poo$RIGHT_GAZE_X[poo$TRIAL_INDEX==i & poo$subID==subs[j] &poo$TIMECODE < 1751] < targetx2)
+    result <- rle(diff(goodx))
+    if (any(result$lengths>24 & result$values==1)) { #meaning they looked at center for at least 100ms 
+      #1 = looked at center
+      b <- c(subs[j],trials[i],1)
+      fixations <- rbind(fixations,b)
+    }  else {
+      #0 = looked at center
+      b <- c(subs[j],trials[i],0)
+      fixations <- rbind(fixations,b)
+    }
+  }}
+
+names(fixations)[1] <- "subID"
+names(fixations)[2] <- "trialnum"
+names(fixations)[3] <- "lookedatcenter" #1 = looked at center, 0 = did not look at center
+  
+#trials where Ss did not look at center
+bad <- which(fixations$lookedatcenter == 0)
+badtarg <- fixations[bad,]
+#trials where Ss did look at center
+good <- which(fixations$lookedatcenter == 1)
+goodtarg <- fixations[good,]
+
+#plot num of good trials vs bad trials (i.e. look to fixation) each sub has
+fixations2 <- data.frame(subID= numeric(0), trials=  numeric(0), trialtype = numeric(0))
+for (j in 1:length(subs)) {
+  good <- length(goodtarg$trialnum[goodtarg$subID==subs[j]])
+  bad <- length(badtarg$trialnum[badtarg$subID==subs[j]])
+  z <- c(subs[j],good,1)
+  z1 <- c(subs[j],bad,0)
+  fixations2 <- rbind(fixations2,z)
+  fixations2 <- rbind(fixations2,z1)
+}
+names(fixations2)[1] <- "subID"
+names(fixations2)[2] <- "trials"
+names(fixations2)[3] <- "trialtype"  
+
+ggplot(fixations2,aes(x=factor(subID),y=trials,fill=factor(trialtype)))+geom_bar(stat="identity")+ggtitle("Overall trial breakdown")+
+  labs(x = "Subject", y = "Num of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+scale_fill_discrete(name="Legend",breaks=c("0", "1"),labels=c("not looking at center", "looking at center"))+ylim(0,48)
+
+```
+
+2. LOOK AT FIXATION TO TARGET
+```{r}
+#Within good fixation to center trials, how many trials have looks to target?
+
+#only keeping rows that meet the criteria
+subs <- unique(poo$subID)
+poogood <- data.frame(X= numeric(0),RECORDING_SESSION_LABEL= numeric(0),RIGHT_GAZE_X= numeric(0),RIGHT_GAZE_Y= numeric(0),RIGHT_IN_BLINK= numeric(0),RIGHT_PUPIL_SIZE= numeric(0),TRIAL_INDEX= numeric(0),targetside= numeric(0),subID= numeric(0), TIMECODE= numeric(0),PUPIL_CORRECTED=numeric(0), leftright=numeric(0),switch= numeric(0),sub.blocks= numeric(0),block= numeric(0),lookattarget=numeric(0),trialnum2=numeric(0), lookatPRESWITCHtarget=numeric(0))
+
+for (j in 1:length(subs)) {
+  #for each subject remove trials that are not looking at center
+  poo1 <- subset(poo, subID==subs[j])
+  trialstoremove <- unique(badtarg$trialnum[badtarg$subID==subs[j]])
+  a <- poo1$TRIAL_INDEX %in% trialstoremove
+  aa <- which(a==TRUE)
+  poo2 <- poo1[-c(aa), ] #remove rows for that subject
+  poogood <- rbind(poogood,poo2)
+  print(j)
+}
+
+#check if gaze x and gaze y are within L or R side
+subs <- unique(poogood$subID)
+target <- data.frame(subID= numeric(0), trialnum=  numeric(0), lookedattarget = numeric(0))
+targetx1 <- 426
+targetx2 <- 854
+
+for (j in 1:length(subs)) {
+  trials <- unique(poogood$TRIAL_INDEX[poogood$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    blah <- subset(poogood,TRIAL_INDEX==trials[i] & subID==subs[j] )
+    if (blah$leftright[1]==1) { #on the left side
+      goodx <- which(poogood$RIGHT_GAZE_X[poogood$TRIAL_INDEX==trials[i] & poogood$subID==subs[j] & poogood$TIMECODE > 1750] < targetx1) 
+      result <- rle(diff(goodx))
+    } else { #on the right side
+      goodx <- which(poogood$RIGHT_GAZE_X[poogood$TRIAL_INDEX==trials[i] & poogood$subID==subs[j] & poogood$TIMECODE > 1750] > targetx2)
+      result <- rle(diff(goodx))
+    }
+    if (any(result$lengths>24 & result$values==1)) { 
+      #if Ss is looking at target for > 100ms
+      b <- c(subs[j],trials[i],1)
+      target <- rbind(target,b)
+    }  else {
+      #if Ss is not looking 
+      b <- c(subs[j],trials[i],0) 
+      target <- rbind(target,b)
+    }
+  }}
+names(target)[1] <- "subID"
+names(target)[2] <- "trialnum"
+names(target)[3] <- "lookedattarget"
+
+bad <- which(target$lookedattarget == 0)
+badtarg1 <- target[bad,]
+
+good <- which(target$lookedattarget == 1)
+goodtarg1 <- target[good,]
+
+#add to plot, organizing the data frame to plot
+#fixations2$trialtype
+#0 = not looking at center
+#1 = looking at center
+#2 = looking at target
+subs <- unique(goodtarg1$subID)
+fixations3 <- data.frame(subID= numeric(0), trialnum=  numeric(0), lookedattarget = numeric(0))
+for (j in 1:length(subs)) {
+  good <- length(goodtarg1$trialnum[goodtarg1$subID==subs[j]])
+  z <- c(subs[j],good,2) 
+  fixations3 <- rbind(fixations3,z)
+}
+
+fixations4 <- subset(fixations2, trialtype==1)
+fixations5 <- subset(fixations2, trialtype==0)
+newData1 <- data.frame(X1 = "3", X34 = "0", X2 = "2")
+newData2 <- data.frame(X1 = "21", X34 = "0", X2 = "2")
+newData3 <- data.frame(X1 = "22", X34 = "0", X2 = "2")
+newData4 <- data.frame(X1 = "27", X34 = "0", X2 = "2")
+newData5 <- data.frame(X1 = "30", X34 = "0", X2 = "2")
+fixations3 <- rbind( fixations3[1:2,], newData1, fixations3[3:29,] )
+fixations3 <- rbind( fixations3[1:20,], newData2, fixations3[21:30,] )
+fixations3 <- rbind( fixations3[1:21,], newData3, fixations3[22:31,] )
+fixations3 <- rbind( fixations3[1:26,], newData4, fixations3[27:32,] )
+fixations3 <- rbind( fixations3[1:29,], newData5, fixations3[30:33,] )
+fixations3$X34 <- as.numeric(fixations3$X34)
+fixations4$trials <- fixations4$trials - fixations3$X34
+
+names(fixations3)[1] <- "subID"
+names(fixations3)[2] <- "trials"
+names(fixations3)[3] <- "trialtype"
+fixations5 <- rbind(fixations5,fixations4,fixations3)
+
+fixations5$subID <- as.numeric(fixations5$subID)
+fixations5 <- fixations5[order(fixations5$subID),]
+ggplot(fixations5,aes(x=factor(subID),y=trials,fill=factor(trialtype)))+geom_bar(stat="identity")+ggtitle("Breakdown of trials")+
+  labs(x = "Subject", y = "Num of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+ylim(0,48)+scale_fill_manual(values=wes_palette(n=3, name="GrandBudapest"),name="Legend",breaks=c("0","1","2"),labels=c("not looking at center", "looking at center","looking at target"))+geom_text(aes(label=trials), size = 5, position = position_stack(vjust = 0.5),colour="white",fontface = "bold")
+
+```
+
+3. LOOK AT AEM: generate AEMs between 250 to 2750ms 
+```{r}
+#Within good trials, how many trials have AEMs (i.e., looks to target before target onset)?
+#generate AEMs between 250 to 2750ms 
+
+#only keeping rows that meet the criteria
+subs <- unique(poogood$subID)
+poogood2 <- data.frame(X= numeric(0),RECORDING_SESSION_LABEL= numeric(0),RIGHT_GAZE_X= numeric(0),RIGHT_GAZE_Y= numeric(0),RIGHT_IN_BLINK= numeric(0),RIGHT_PUPIL_SIZE= numeric(0),TRIAL_INDEX= numeric(0),targetside= numeric(0),subID= numeric(0), TIMECODE= numeric(0),PUPIL_CORRECTED=numeric(0), leftright=numeric(0),switch= numeric(0),sub.blocks= numeric(0),block= numeric(0),lookattarget=numeric(0),trialnum2=numeric(0), lookatPRESWITCHtarget=numeric(0))
+
+for (j in 1:length(subs)) {
+  poo1 <- subset(poogood, subID==subs[j])
+  trialstoremove <- unique(badtarg1$trialnum[badtarg1$subID==subs[j]])
+  a <- poo1$TRIAL_INDEX %in% trialstoremove
+  aa <- which(a==TRUE)
+  print(j)
+  if (length(aa) > 0) {
+    poo2 <- poo1[-c(aa), ] #remove rows for that subject
+    poogood2 <- rbind(poogood2,poo2)
+  } else {
+    poogood2 <- rbind(poogood2,poo1)
+  }}
+
+#check if made AEMS during 200 to 2700ms 
+subs <- unique(poogood2$subID)
+aem <- data.frame(subID= numeric(0), trialnum=  numeric(0), aem = numeric(0))
+targetx1 <- 426
+targetx2 <- 854
+
+for (j in 1:length(subs)) {
+  trials <- unique(poogood2$TRIAL_INDEX[poogood2$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    blah <- subset(poogood2,TRIAL_INDEX==trials[i] & subID==subs[j] )
+    if (blah$leftright[1]==1) { #on the left side
+      goodx <- which(poogood2$RIGHT_GAZE_X[poogood2$TRIAL_INDEX==trials[i] & poogood2$subID==subs[j] & poogood2$TIMECODE > 199 & poogood2$TIMECODE < 2701] < targetx1) 
+      result <- rle(diff(goodx))
+    } else { #on the right side
+      goodx <- which(poogood2$RIGHT_GAZE_X[poogood2$TRIAL_INDEX==trials[i] & poogood2$subID==subs[j] & poogood2$TIMECODE > 199 & poogood2$TIMECODE < 2701] > targetx2)
+      result <- rle(diff(goodx))
+    }
+    if (any(result$lengths>24 & result$values==1)) { #if Ss is making AEM during the time frame
+      b <- c(subs[j],trials[i],1)
+      aem <- rbind(aem,b)
+    }  else {
+      b <- c(subs[j],trials[i],0) #if Ss is not making AEM 
+      aem <- rbind(aem,b)
+    }}}
+names(aem)[1] <- "subID"
+names(aem)[2] <- "trialnum"
+names(aem)[3] <- "aem"
+
+bad <- which(aem$aem == 0)
+badaem <- aem[bad,]
+
+good <- which(aem$aem == 1)
+goodaem <- aem[good,]
+
+#add to plot, organizing the data frame to plot
+#fixations2$trialtype
+#0 = not looking at fixation
+#1 = looking at fixation
+#2 = looking at target
+#3 = making aem
+subs <- unique(goodaem$subID)
+aem2 <- data.frame(subID= numeric(0), trialnum=  numeric(0), aem = numeric(0))
+for (j in 1:length(subs)) {
+  good <- length(goodaem$trialnum[goodaem$subID==subs[j]])
+  z <- c(subs[j],good,3) 
+  aem2 <- rbind(aem2,z)
+}
+
+newData1 <- data.frame(X1 = "3", X17 = "0", X3 = "3")
+newData2 <- data.frame(X1 = "21", X17 = "0", X3 = "3")
+newData3 <- data.frame(X1 = "22", X17 = "0", X3 = "3")
+newData4 <- data.frame(X1 = "27", X17 = "0", X3 = "3")
+newData5 <- data.frame(X1 = "30", X17 = "0", X3 = "3")
+aem2 <- rbind( aem2[1:2,], newData1, aem2[3:29,] )
+aem2 <- rbind( aem2[1:20,], newData2, aem2[21:30,] )
+aem2 <- rbind( aem2[1:21,], newData3, aem2[22:31,] )
+aem2 <- rbind( aem2[1:26,], newData4, aem2[27:32,] )
+aem2 <- rbind( aem2[1:29,], newData5, aem2[30:33,] )
+aem2$X17 <- as.numeric(aem2$X17)
+names(aem2)[1] <- "subID"
+names(aem2)[2] <- "trials"
+names(aem2)[3] <- "trialtype"
+all1 <- subset(fixations5, trialtype==2)
+all1$trials <- all1$trials - aem2$trials
+
+fixations6 <- subset(fixations5, trialtype < 2)
+fixation7 <- rbind(fixations6,all1,aem2)
+
+fixation7$subID <- as.numeric(fixation7$subID)
+fixation7 <- fixation7[order(fixation7$subID),]
+ggplot(fixation7,aes(x=factor(subID),y=trials,fill=factor(trialtype)))+geom_bar(stat="identity")+ggtitle("Breakdown of trials")+
+  labs(x = "Subject", y = "Num of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+ylim(0,48)+scale_fill_manual(values=wes_palette(n=4,name="Darjeeling2"),name="Legend",breaks=c("0","1","2","3"),labels=c("not looking at center", "not looking at target","looking at target, no AEM","looking at target, yes AEM"))+geom_text(aes(label=trials), size = 5, position = position_stack(vjust = 0.5),colour="white",fontface = "bold")
+
+```
+
+4. medium window 700ms - 2700ms
+```{r}
+#Within good trials, how many trials have AEMs (i.e., looks to target before target onset) using window for older babies
+subs <- unique(poogood2$subID)
+aemolderbaby <- data.frame(subID= numeric(0), trialnum=  numeric(0), aem = numeric(0))
+targetx1 <- 426
+targetx2 <- 854
+
+for (j in 1:length(subs)) {
+  trials <- unique(poogood2$TRIAL_INDEX[poogood2$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    blah <- subset(poogood2,TRIAL_INDEX==trials[i] & subID==subs[j])
+    if (blah$leftright[1]==1) { #on the left side
+      goodx <- which(poogood2$RIGHT_GAZE_X[poogood2$TRIAL_INDEX==trials[i] & poogood2$subID==subs[j] & poogood2$TIMECODE > 699 & poogood2$TIMECODE < 2701] < targetx1) 
+      result <- rle(diff(goodx))
+    } else { #on the right side
+      goodx <- which(poogood2$RIGHT_GAZE_X[poogood2$TRIAL_INDEX==trials[i] & poogood2$subID==subs[j] & poogood2$TIMECODE > 699 & poogood2$TIMECODE < 2701] > targetx2)
+      result <- rle(diff(goodx))
+    }
+    if (any(result$lengths>24 & result$values==1)) { #if Ss is making AEM during the time frame
+      b <- c(subs[j],trials[i],1)
+      aemolderbaby <- rbind(aemolderbaby,b)
+    }  else {
+      b <- c(subs[j],trials[i],0) #if Ss is not making AEM 
+      aemolderbaby <- rbind(aemolderbaby,b)
+    }}}
+names(aemolderbaby)[1] <- "subID"
+names(aemolderbaby)[2] <- "trialnum"
+names(aemolderbaby)[3] <- "aem"
+
+bad <- which(aemolderbaby$aem == 0)
+badaem2 <- aemolderbaby[bad,]
+
+good <- which(aemolderbaby$aem == 1)
+goodaem2 <- aemolderbaby[good,]
+
+#add to plot, organizing the data frame to plot
+#fixations2$trialtype
+#0 = not looking at fixation
+#1 = looking at fixation
+#2 = looking at target
+#3 = making aem using larger window
+#4 = making aem using older baby window
+
+subs <- unique(goodaem2$subID)
+aem3 <- data.frame(subID= numeric(0), trialnum=  numeric(0), aem = numeric(0))
+for (j in 1:length(subs)) {
+  good <- length(goodaem2$trialnum[goodaem2$subID==subs[j]])
+  z <- c(subs[j],good,4) 
+  aem3 <- rbind(aem3,z)
+}
+
+names(aem3)[1] <- "subID"
+names(aem3)[2] <- "trials"
+names(aem3)[3] <- "trialtype"
+
+newData1 <- data.frame(subID = "3", trials = "0", trialtype = "4")
+newData2 <- data.frame(subID = "13", trials = "0", trialtype = "4")
+newData3 <- data.frame(subID = "21", trials = "0", trialtype = "4")
+newData4 <- data.frame(subID = "22", trials = "0", trialtype = "4")
+newData5 <- data.frame(subID = "27", trials = "0", trialtype = "4")
+newData6 <- data.frame(subID = "30", trials = "0", trialtype = "4")
+aem3 <- rbind( aem3[1:2,], newData1, aem3[3:29,] )
+aem3 <- rbind( aem3[1:12,], newData2, aem3[13:30,] )
+aem3 <- rbind( aem3[1:20,], newData3, aem3[21:30,] )
+aem3 <- rbind( aem3[1:21,], newData4, aem3[22:31,] )
+aem3 <- rbind( aem3[1:26,], newData5, aem3[27:32,] )
+aem3 <- rbind( aem3[1:29,], newData6, aem3[30:33,] )
+
+aem3$trials <- as.numeric(aem3$trials)
+names(aem3)[1] <- "subID"
+names(aem3)[2] <- "trials"
+names(aem3)[3] <- "trialtype"
+
+all2 <- subset(fixation7, trialtype==3)
+all2$trials <- all2$trials - aem3$trials
+fixations8 <- subset(fixation7, trialtype < 3)
+final <- rbind(fixations8,all2,aem3)
+
+final$subID <- as.numeric(final$subID)
+final <- final[order(final$subID),]
+
+ggplot(final,aes(x=factor(subID),y=trials,fill=factor(trialtype)))+geom_bar(stat="identity")+ggtitle("Breakdown of trials")+
+  labs(x = "Subject", y = "Num of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+ylim(0,48)+scale_fill_manual(values=wes_palette(n=5, name="Darjeeling2"),name="Legend",breaks=c("0","1","2","3","4"),labels=c("not looking at center", "not looking at target","looking at target, no AEM","looking at target, AEM 200-2700","looking at target, AEM 700-2700"))+geom_text(aes(label=trials), size = 5, position = position_stack(vjust = 0.5),colour="white",fontface = "bold")
+
+```
+
+Only looking at how many trials look to target, and how many do AEM (trialtype 2 and 4)
+```{r}
+final.a <- subset(final, trialtype ==2)
+final.b <- subset(final, trialtype ==3)
+final.c <- subset(final, trialtype ==4)
+final2 <- final.a
+final2$trials <- final.a$trials+final.b$trials
+final3 <- rbind(final2, final.c)
+
+ggplot(final3,aes(x=factor(subID),y=trials,fill=factor(trialtype)))+geom_bar(stat="identity")+ggtitle("Breakdown of trials")+
+  labs(x = "Subject", y = "Num of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+ylim(0,48)+scale_fill_manual(values=wes_palette(n=5, name="Darjeeling2"),name="Legend",breaks=c("2","4"),labels=c("looking at target","looking at target, AEM 700-2700"))+geom_text(aes(label=trials), size = 5, position = position_stack(vjust = 0.5),colour="white",fontface = "bold")
+
+```
+
+Plot: do infants look more at target within each subblock?
+trial number (1-8) on x axis and % look to target (ignoring pre and post switch, collapsing across subblocks)
+plot should be increasing with trial number
+1. broad window
+2. narrow window (more anticipatory)
+
+```{r}
+#only looking at 700 - 2700 (AEM time)
+hoo2 <- subset(poo.bin, timecode > 699 & timecode < 2701)
+
+#rename trial number
+hoo2$trialnum2 <- 0
+hoo2$trialnum2[hoo2$trialnum == 1 | hoo2$trialnum == 17 | hoo2$trialnum == 33] <- 1
+hoo2$trialnum2[hoo2$trialnum == 2 | hoo2$trialnum == 18 | hoo2$trialnum == 34] <- 2
+hoo2$trialnum2[hoo2$trialnum == 3 | hoo2$trialnum == 19 | hoo2$trialnum == 35] <- 3
+hoo2$trialnum2[hoo2$trialnum == 4 | hoo2$trialnum == 20 | hoo2$trialnum == 36] <- 4
+
+hoo2$trialnum2[hoo2$trialnum == 9 | hoo2$trialnum == 25 | hoo2$trialnum == 41] <- 9
+hoo2$trialnum2[hoo2$trialnum == 10 | hoo2$trialnum == 26 | hoo2$trialnum == 42] <- 10
+hoo2$trialnum2[hoo2$trialnum == 11 | hoo2$trialnum == 27 | hoo2$trialnum == 43] <- 11
+hoo2$trialnum2[hoo2$trialnum == 12 | hoo2$trialnum == 28 | hoo2$trialnum == 44] <- 12
+
+#collapse across blocks
+hoo5 <- ddply(hoo2,.(subID,trialnum2),summarise,lookingSs=mean(target,na.rm = TRUE))
+#if lookingSs is > 0, then it means they made AEM, so 
+hoo5$lookingSs[hoo5$lookingSs > 0] <- 1
+hoo6 <- ddply(hoo5,.(trialnum2),summarise,babylooking=mean(lookingSs,na.rm = TRUE),selooking=sd(lookingSs, na.rm = TRUE)/sqrt(length(lookingSs)))
+
+hoo6$switch <- 1
+hoo6$switch[hoo6$trialnum2 > 8] <- 2
+hoo6$trialnum3 <- rep(2:4, times=2)
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = babylooking + selooking, ymin=babylooking - selooking)
+
+ggplot(hoo6,aes(x=factor(trialnum3),y=babylooking))+geom_bar(stat="identity",position=dodge)+
+  ggtitle("Looking at target during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")
+
+ggplot(hoo6,aes(x=factor(trialnum3),y=babylooking,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at target during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")
+
+#LINE GRAPH
+ggplot(hoo6,aes(x=trialnum3,y=babylooking,fill=factor(switch),color=factor(switch)))+geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Looking at target during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_ribbon(aes(ymin=babylooking-selooking,ymax=babylooking+selooking),alpha=0.4)+scale_x_continuous(limits=c(1,4),breaks=seq(1,4,1))
+
+#don't collapse across the 3 blocks
+hoo3 <- ddply(hoo2,.(subID,trialnum),summarise,lookingSs=mean(target,na.rm = TRUE))
+#if lookingSs is > 0, then it means they made AEM, so 
+hoo3$lookingSs[hoo3$lookingSs > 0] <- 1
+hoo3$block <- 1
+hoo3$block[hoo3$trialnum > 16 & hoo3$trialnum < 33] <- 2
+hoo3$block[hoo3$trialnum > 32] <- 3
+
+hoo3$trialnum2 <- 0
+hoo3$trialnum2[hoo3$trialnum == 1 | hoo3$trialnum == 17 | hoo3$trialnum == 33] <- 1
+hoo3$trialnum2[hoo3$trialnum == 2 | hoo3$trialnum == 18 | hoo3$trialnum == 34] <- 2
+hoo3$trialnum2[hoo3$trialnum == 3 | hoo3$trialnum == 19 | hoo3$trialnum == 35] <- 3
+hoo3$trialnum2[hoo3$trialnum == 4 | hoo3$trialnum == 20 | hoo3$trialnum == 36] <- 4
+
+hoo3$trialnum2[hoo3$trialnum == 9 | hoo3$trialnum == 25 | hoo3$trialnum == 41] <- 9
+hoo3$trialnum2[hoo3$trialnum == 10 | hoo3$trialnum == 26 | hoo3$trialnum == 42] <- 10
+hoo3$trialnum2[hoo3$trialnum == 11 | hoo3$trialnum == 27 | hoo3$trialnum == 43] <- 11
+hoo3$trialnum2[hoo3$trialnum == 12 | hoo3$trialnum == 28 | hoo3$trialnum == 44] <- 12
+
+hoo4 <- ddply(hoo3,.(block,trialnum2),summarise,babylooking=mean(lookingSs,na.rm = TRUE),selooking=sd(lookingSs, na.rm = TRUE)/sqrt(length(lookingSs)))
+
+hoo4$switch <- 1
+hoo4$switch[hoo4$trialnum2 > 8] <- 2
+hoo4$trialnum3 <- rep(2:4, times=4)
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = babylooking + selooking, ymin=babylooking - selooking)
+
+ggplot(hoo4,aes(x=factor(trialnum3),y=babylooking,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at target during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")+facet_wrap(~factor(block))
+
+#LINE GRAPH
+ggplot(hoo4,aes(x=trialnum3,y=babylooking,fill=factor(switch),color=factor(switch)))+geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Looking at target during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_ribbon(aes(ymin=babylooking-selooking,ymax=babylooking+selooking),alpha=0.4)+scale_x_continuous(limits=c(1,4),breaks=seq(1,4,1))+facet_wrap(~factor(block))
+
+```
+
+plot % of babies making an AEM to the pre-switch target location - both for pre-switch trials (which would look the same as you have here) and for post-switch trials (which would initially be a high percentage, since they’ve learned the pre-switch location, and then would drop off as they learn the new, post-switch target location). So this would make the X shape where they learn in pre-switch and “un-learn” in post-switch trials.
+```{r}
+#only looking at 700 - 2700 (AEM time)
+hoo2 <- subset(poo.bin, timecode > 699 & timecode < 2701)
+
+#rename trial number
+hoo2$trialnum2 <- 0
+hoo2$trialnum2[hoo2$trialnum == 1 | hoo2$trialnum == 17 | hoo2$trialnum == 33] <- 1
+hoo2$trialnum2[hoo2$trialnum == 2 | hoo2$trialnum == 18 | hoo2$trialnum == 34] <- 2
+hoo2$trialnum2[hoo2$trialnum == 3 | hoo2$trialnum == 19 | hoo2$trialnum == 35] <- 3
+hoo2$trialnum2[hoo2$trialnum == 4 | hoo2$trialnum == 20 | hoo2$trialnum == 36] <- 4
+
+hoo2$trialnum2[hoo2$trialnum == 9 | hoo2$trialnum == 25 | hoo2$trialnum == 41] <- 9
+hoo2$trialnum2[hoo2$trialnum == 10 | hoo2$trialnum == 26 | hoo2$trialnum == 42] <- 10
+hoo2$trialnum2[hoo2$trialnum == 11 | hoo2$trialnum == 27 | hoo2$trialnum == 43] <- 11
+hoo2$trialnum2[hoo2$trialnum == 12 | hoo2$trialnum == 28 | hoo2$trialnum == 44] <- 12
+
+#collapse across trials
+hoo5 <- ddply(hoo2,.(subID,trialnum2),summarise,lookingTarg=mean(target,na.rm = TRUE),lookingDistractor=mean(distractor,na.rm = TRUE))
+#if lookingSs is > 0, then it means they made AEM, so 
+hoo5$lookingTarg[hoo5$lookingTarg > 0] <- 1
+hoo5$lookingDistractor[hoo5$lookingDistractor > 0] <- 1
+
+hoo5$aempreswitch <- 9
+for (i in 1:length(hoo5$subID)){
+  #for every row
+  if (hoo5$trialnum2[i] < 9) { #if preswitch 
+    if (hoo5$lookingTarg[i] == 1) { #care whether they're looking at target
+      hoo5$aempreswitch[i] <- 1 #meaning they're looking at preswitch location
+    } else {
+      hoo5$aempreswitch[i] <- 0
+    }}
+    else { #if post switch
+      if (hoo5$lookingDistractor[i] == 1) { #care if they're looking at distractor
+      hoo5$aempreswitch[i] <- 1 #meaning they're looking at preswitch location
+    } else {
+      hoo5$aempreswitch[i] <- 0
+    }}}
+
+#collapse across subs  
+hoo6 <- ddply(hoo5,.(trialnum2),summarise,babylooking=mean(aempreswitch,na.rm = TRUE),selooking=sd(aempreswitch, na.rm = TRUE)/sqrt(length(aempreswitch)))
+
+hoo6$switch <- 1
+hoo6$switch[hoo6$trialnum2 > 8] <- 2
+hoo6$trialnum3 <- rep(2:4, times=2)
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = babylooking + selooking, ymin=babylooking - selooking)
+
+ggplot(hoo6,aes(x=factor(trialnum2),y=babylooking))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")
+
+ggplot(hoo6,aes(x=factor(trialnum3),y=babylooking,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")
+
+#LINE GRAPH
+ggplot(hoo6,aes(x=trialnum3,y=babylooking,fill=factor(switch),color=factor(switch)))+geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_ribbon(aes(ymin=babylooking-selooking,ymax=babylooking+selooking),alpha=0.4)+scale_x_continuous(limits=c(1,4),breaks=seq(1,4,1))
+
+#number of babies on y axis (histogram)
+hoo7 <- subset(hoo5, aempreswitch==1)
+hoo7$switch <- 1
+hoo7$switch[hoo7$trialnum2 > 8] <- 2
+hoo7$trialnum3 <- rep(seq(1:4), times=2)
+
+hoo8 <- ddply(hoo7,.(trialnum2,switch),summarise,numbabies=length(unique(subID)))
+hoo8$trialnum3 <- rep(seq(1:4), times=2)
+dodge <- position_dodge(width=0.9)
+
+ggplot(hoo8,aes(x=factor(trialnum3),y=numbabies,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "Number of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+scale_y_continuous(limits=c(0,34),breaks=seq(0,34,4))
+
+#don't collapse across the 3 blocks
+hoo3 <- ddply(hoo2,.(subID,trialnum),summarise,lookingTarg=mean(target,na.rm = TRUE),lookingDistractor=mean(distractor,na.rm = TRUE))
+#if lookingSs is > 0, then it means they made AEM, so 
+hoo3$lookingTarg[hoo3$lookingTarg > 0] <- 1
+hoo3$lookingDistractor[hoo3$lookingDistractor > 0] <- 1
+hoo3$block <- 1
+hoo3$block[hoo3$trialnum > 16 & hoo3$trialnum < 33] <- 2
+hoo3$block[hoo3$trialnum > 32] <- 3
+
+hoo3$trialnum2 <- 0
+hoo3$trialnum2[hoo3$trialnum == 1 | hoo3$trialnum == 17 | hoo3$trialnum == 33] <- 1
+hoo3$trialnum2[hoo3$trialnum == 2 | hoo3$trialnum == 18 | hoo3$trialnum == 34] <- 2
+hoo3$trialnum2[hoo3$trialnum == 3 | hoo3$trialnum == 19 | hoo3$trialnum == 35] <- 3
+hoo3$trialnum2[hoo3$trialnum == 4 | hoo3$trialnum == 20 | hoo3$trialnum == 36] <- 4
+
+hoo3$trialnum2[hoo3$trialnum == 9 | hoo3$trialnum == 25 | hoo3$trialnum == 41] <- 9
+hoo3$trialnum2[hoo3$trialnum == 10 | hoo3$trialnum == 26 | hoo3$trialnum == 42] <- 10
+hoo3$trialnum2[hoo3$trialnum == 11 | hoo3$trialnum == 27 | hoo3$trialnum == 43] <- 11
+hoo3$trialnum2[hoo3$trialnum == 12 | hoo3$trialnum == 28 | hoo3$trialnum == 44] <- 12
+
+hoo3$aempreswitch <- 9
+for (i in 1:length(hoo3$subID)){
+  #for every row
+  if (hoo3$trialnum2[i] < 9) { #if preswitch 
+    if (hoo3$lookingTarg[i] == 1) { #care whether they're looking at target
+      hoo3$aempreswitch[i] <- 1 #meaning they're looking at preswitch location
+    } else {
+      hoo3$aempreswitch[i] <- 0
+    }}
+    else { #if post switch
+      if (hoo3$lookingDistractor[i] == 1) { #care if they're looking at distractor
+      hoo3$aempreswitch[i] <- 1 #meaning they're looking at preswitch location
+    } else {
+      hoo3$aempreswitch[i] <- 0
+    }}}
+
+#collapse across subs  
+hoo4 <- ddply(hoo3,.(block,trialnum2),summarise,babylooking=mean(aempreswitch,na.rm = TRUE),selooking=sd(aempreswitch, na.rm = TRUE)/sqrt(length(aempreswitch)))
+
+hoo4$switch <- 1
+hoo4$switch[hoo4$trialnum2 > 8] <- 2
+hoo4$trialnum3 <- rep(2:4, times=4)
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = babylooking + selooking, ymin=babylooking - selooking)
+
+ggplot(hoo4,aes(x=factor(trialnum3),y=babylooking,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")+facet_wrap(~factor(block))
+
+#LINE GRAPH
+ggplot(hoo4,aes(x=trialnum3,y=babylooking,fill=factor(switch),color=factor(switch)))+geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "% of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  ylim(0,1)+scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+guides(color=FALSE)+geom_ribbon(aes(ymin=babylooking-selooking,ymax=babylooking+selooking),alpha=0.4)+scale_x_continuous(limits=c(1,4),breaks=seq(1,4,1))+facet_wrap(~factor(block))
+
+#number of babies on y axis 
+hoo9 <- subset(hoo3, aempreswitch==1)
+hoo10 <- ddply(hoo9,.(block,trialnum2),summarise,babylooking=length(unique(subID)),selooking=sd(aempreswitch, na.rm = TRUE)/sqrt(length(aempreswitch)))
+
+hoo10$switch <- 1
+hoo10$switch[hoo10$trialnum2 > 8] <- 2
+hoo10$trialnum3 <- rep(seq(1:4), times=6)
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = babylooking + selooking, ymin=babylooking - selooking)
+
+ggplot(hoo10,aes(x=factor(trialnum3),y=babylooking,fill=factor(switch),color=factor(switch)))+geom_bar(stat="identity",position=dodge)+ggtitle("Looking at preswitch trial during 700 to 2700ms")+
+  labs(x = "Trial number", y = "Number of babies making AEM")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_fill_discrete(name="Looking",breaks=c("1", "2"),labels=c("preswitch", "postswitch"))+
+  guides(color=FALSE)+facet_wrap(~factor(block))+
+  scale_y_continuous(limits=c(0,20),breaks=seq(0,20,2))
+
+```
+
