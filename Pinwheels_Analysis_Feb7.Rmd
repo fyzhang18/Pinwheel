@@ -1,0 +1,1829 @@
+---
+title: "Untitled"
+author: "Felicia Zhang"
+date: '2018-01-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2) 
+library(zoo)
+library(reshape)
+library(plyr)
+library(scales) 
+library(data.table)
+library(signal)
+library(matrixStats)
+library(lme4)
+library(arm)
+library(RColorBrewer)
+library(lmerTest)
+library(boot)
+
+#load preprocessed data
+
+#Oct21 has PUPIL_CORRECTED_2 calculated using 0-1500ms
+orig.sample <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_AllSamples_Nov28.csv") #Nov28 has trackloss % for all trials
+orig.sample2 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_RemovedOutliers_Nov28.csv")  #Nov28 has bad trials removed
+orig.sample$X <- NULL
+orig.sample2$X <- NULL
+orig.sample$X.1 <- NULL
+orig.sample2$X.1 <- NULL
+
+#REMOVE TRIALS 5-8 FOR EACH SUBBLOCK
+orig.sample$trialnum <- 0
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 1 | orig.sample$TRIAL_INDEX == 9 | orig.sample$TRIAL_INDEX == 17 | orig.sample$TRIAL_INDEX == 25 | orig.sample$TRIAL_INDEX == 33 | orig.sample$TRIAL_INDEX == 41] <- 1
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 2 | orig.sample$TRIAL_INDEX == 10 | orig.sample$TRIAL_INDEX == 18 | orig.sample$TRIAL_INDEX == 26 | orig.sample$TRIAL_INDEX == 34 | orig.sample$TRIAL_INDEX == 42] <- 2
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 3 | orig.sample$TRIAL_INDEX == 11 | orig.sample$TRIAL_INDEX == 19 | orig.sample$TRIAL_INDEX == 27 | orig.sample$TRIAL_INDEX == 35 | orig.sample$TRIAL_INDEX == 43] <- 3
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 4 | orig.sample$TRIAL_INDEX == 12 | orig.sample$TRIAL_INDEX == 20 | orig.sample$TRIAL_INDEX == 28 | orig.sample$TRIAL_INDEX == 36 | orig.sample$TRIAL_INDEX == 44] <- 4
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 5 | orig.sample$TRIAL_INDEX == 13 | orig.sample$TRIAL_INDEX == 21 | orig.sample$TRIAL_INDEX == 29 | orig.sample$TRIAL_INDEX == 37 | orig.sample$TRIAL_INDEX == 45] <- 5
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 6 | orig.sample$TRIAL_INDEX == 14 | orig.sample$TRIAL_INDEX == 22 | orig.sample$TRIAL_INDEX == 30 | orig.sample$TRIAL_INDEX == 38 | orig.sample$TRIAL_INDEX == 46] <- 6
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 7 | orig.sample$TRIAL_INDEX == 15 | orig.sample$TRIAL_INDEX == 23 | orig.sample$TRIAL_INDEX == 31 | orig.sample$TRIAL_INDEX == 39 | orig.sample$TRIAL_INDEX == 47] <- 7
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 8 | orig.sample$TRIAL_INDEX == 16 | orig.sample$TRIAL_INDEX == 24 | orig.sample$TRIAL_INDEX == 32 | orig.sample$TRIAL_INDEX == 40 | orig.sample$TRIAL_INDEX == 48] <- 8
+
+orig.sample2$trialnum <- 0
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 1 | orig.sample2$TRIAL_INDEX == 9 | orig.sample2$TRIAL_INDEX == 17 | orig.sample2$TRIAL_INDEX == 25 | orig.sample2$TRIAL_INDEX == 33 | orig.sample2$TRIAL_INDEX == 41] <- 1
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 2 | orig.sample2$TRIAL_INDEX == 10 | orig.sample2$TRIAL_INDEX == 18 | orig.sample2$TRIAL_INDEX == 26 | orig.sample2$TRIAL_INDEX == 34 | orig.sample2$TRIAL_INDEX == 42] <- 2
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 3 | orig.sample2$TRIAL_INDEX == 11 | orig.sample2$TRIAL_INDEX == 19 | orig.sample2$TRIAL_INDEX == 27 | orig.sample2$TRIAL_INDEX == 35 | orig.sample2$TRIAL_INDEX == 43] <- 3
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 4 | orig.sample2$TRIAL_INDEX == 12 | orig.sample2$TRIAL_INDEX == 20 | orig.sample2$TRIAL_INDEX == 28 | orig.sample2$TRIAL_INDEX == 36 | orig.sample2$TRIAL_INDEX == 44] <- 4
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 5 | orig.sample2$TRIAL_INDEX == 13 | orig.sample2$TRIAL_INDEX == 21 | orig.sample2$TRIAL_INDEX == 29 | orig.sample2$TRIAL_INDEX == 37 | orig.sample2$TRIAL_INDEX == 45] <- 5
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 6 | orig.sample2$TRIAL_INDEX == 14 | orig.sample2$TRIAL_INDEX == 22 | orig.sample2$TRIAL_INDEX == 30 | orig.sample2$TRIAL_INDEX == 38 | orig.sample2$TRIAL_INDEX == 46] <- 6
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 7 | orig.sample2$TRIAL_INDEX == 15 | orig.sample2$TRIAL_INDEX == 23 | orig.sample2$TRIAL_INDEX == 31 | orig.sample2$TRIAL_INDEX == 39 | orig.sample2$TRIAL_INDEX == 47] <- 7
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 8 | orig.sample2$TRIAL_INDEX == 16 | orig.sample2$TRIAL_INDEX == 24 | orig.sample2$TRIAL_INDEX == 32 | orig.sample2$TRIAL_INDEX == 40 | orig.sample2$TRIAL_INDEX == 48] <- 8
+
+orig.sample3 <- subset(orig.sample2, trialnum > 1)
+#counting number of babies for criteria 3: contribute at least one trial for 4/6 subblock (2 for preswitch and 2 for postswitch)
+#exclude: 3, 4, 16, 19, 22, 27, 29, 30 (8 subs excluded)
+orig.sample4 <- subset(orig.sample3, subID != 3)
+orig.sample4 <- subset(orig.sample4, subID != 4)
+orig.sample4 <- subset(orig.sample4, subID != 16)
+orig.sample4 <- subset(orig.sample4, subID != 19)
+orig.sample4 <- subset(orig.sample4, subID != 22)
+orig.sample4 <- subset(orig.sample4, subID != 27)
+orig.sample4 <- subset(orig.sample4, subID != 29)
+orig.sample4 <- subset(orig.sample4, subID != 30)
+
+#orig.sample = all trials
+#orig.sample2 = trials with more than 50% looking
+#orig.sample3 = excluded trial 1 of each sublock
+#orig.sample4 = excluded subjects
+```
+
+Change from previous data analysis: remove trial 1 of each sublock
+
+AEM coding
+```{r}
+
+poo <- orig.sample4
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),block=numeric(),timecode=numeric(),lookingattarget=numeric())
+
+poo <- orig.sample4
+
+poo <- orig.sample3
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),timecode=numeric(),lookingattarget=numeric())
+
+subs <- unique(poo$subID)
+time <- seq(100,4000, by=100) #the time bins we are trying to create (0-4000ms) doing 4000ms bc s
+
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    #gets all sample for 1 trial  
+    woo <- subset(poo, subID==subs[j] & TRIAL_INDEX == trials[i])
+    c <- woo$block[1]
+    for (k in 1:length(time)){
+      #for every 25 sample/100 ms, get lookattarget column
+      if (k==1) {
+        target <- woo$lookattarget[woo$TIMECODE < time[k]+1] #gets 0-100ms
+        d <- unique(target)
+        dd <- which(d==1)
+      } else {
+        target <- woo$lookattarget[woo$TIMECODE < time[k]+1 & woo$TIMECODE > time[k-1]-1]
+        d <- unique(target)
+        dd <- which(d==1)
+      }
+      #see if entire chunk is looking at target
+      if (length(target)==0) { #no samples collected during this time
+        aa <- c(subs[j],trials[i],c,time[k],99)   
+        moo <- rbind(moo,aa)
+        warnings()
+      } else if (length(d)==1 & d==1) { #looking at target entire time
+        aa <- c(subs[j],trials[i],c,time[k],d)   
+        moo <- rbind(moo,aa)
+        warnings()
+      } else if (length(d)==1 & d==0) { #looking at distractor entire time
+        aa <- c(subs[j],trials[i],c,time[k],d)   
+        moo <- rbind(moo,aa)
+        warnings()
+      } else if (length(d)==1 & d==5) { #looking at center entire time
+        aa <- c(subs[j],trials[i],c,time[k],d)   
+        moo <- rbind(moo,aa)
+        warnings()
+      } else if (length(d) > 1 & length(dd) < 1) { #not looking at same location and not looking at target (looking at distractor and center)
+        aa <- c(subs[j],trials[i],c,time[k],9)   
+        moo <- rbind(moo,aa) 
+        warnings()
+      } else { #not looking at same location and but looking at target sometimes
+        #calculate proportion looking  
+        b <- length(which(target==1)) #samples where subs are looking at target
+        bb <- length(which(target==1))/length(target) #looking at target/25
+        aa <- c(subs[j],trials[i],c,time[k],bb) 
+        moo <- rbind(moo,aa)
+        warnings()
+      }}}}
+
+names(moo)[1] <- "subID"
+names(moo)[2] <- "trialnum"
+names(moo)[3] <- "block"
+names(moo)[4] <- "timecode"
+names(moo)[5] <- "lookattarget"
+
+moo$switch <- 1
+moo$switch[moo$trialnum > 8 & moo$trialnum < 17 ] <- 2
+moo$switch[moo$trialnum > 24 & moo$trialnum < 33 ] <- 2
+moo$switch[moo$trialnum > 40 ] <- 2
+
+#0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
+x1 <- subset(moo, lookattarget < 99) #remove no data collected
+x1$looktocenter <- 0
+
+#coding which trials looked to center before making AEM
+subs <- unique(x1$subID)
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(x1$trialnum[x1$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    foo <- subset(x1, subID==subs[j] & trialnum==trials[i] & timecode < 701)  
+    if (any(foo$lookattarget==5)) {
+      x1$looktocenter[x1$subID==subs[j] & x1$trialnum==trials[i]] <- 1
+    }
+  }}
+
+#code trial type: correct AEM, incorrect AEM, or no AEM 
+#must look to center first, must make eye movement in 700-2700ms
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+
+x1$type <- 3
+subs <- unique(x1$subID)
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(x1$trialnum[x1$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+    foo <- subset(x1, subID==subs[j] & trialnum==trials[i] & timecode > 699 & timecode <2601) 
+
+    foo <- subset(x1, subID==subs[j] & trialnum==trials[i] & timecode > 699 & timecode <2601) 
+
+    foo <- subset(x1, subID==subs[j] & trialnum==trials[i] & timecode > 699 & timecode <2701) 
+
+    foo <- subset(x1, subID==subs[j] & trialnum==trials[i] & timecode > 699 & timecode <2701) 
+
+    if (any(foo$lookattarget==0) & foo$looktocenter[1]==1) {
+      x1$type[x1$subID==subs[j] & x1$trialnum==trials[i]] <- 2
+    }
+    if (any(foo$lookattarget==1) & foo$looktocenter[1]==1) {
+      x1$type[x1$subID==subs[j] & x1$trialnum==trials[i]] <- 1
+    }}}
+
+x1$trialnum2 <- 0
+x1$trialnum2[x1$trialnum == 1 | x1$trialnum == 9 | x1$trialnum == 17 | x1$trialnum == 25 | x1$trialnum == 33 | x1$trialnum == 41] <- 1
+x1$trialnum2[x1$trialnum == 2 | x1$trialnum == 10 | x1$trialnum == 18 | x1$trialnum == 26 | x1$trialnum == 34 | x1$trialnum == 42] <- 2
+x1$trialnum2[x1$trialnum == 3 | x1$trialnum == 11 | x1$trialnum == 19 | x1$trialnum == 27 | x1$trialnum == 35 | x1$trialnum == 43] <- 3
+x1$trialnum2[x1$trialnum == 4 | x1$trialnum == 12 | x1$trialnum == 20 | x1$trialnum == 28 | x1$trialnum == 36 | x1$trialnum == 44] <- 4
+x1$trialnum2[x1$trialnum == 5 | x1$trialnum == 13 | x1$trialnum == 21 | x1$trialnum == 29 | x1$trialnum == 37 | x1$trialnum == 45] <- 5
+x1$trialnum2[x1$trialnum == 6 | x1$trialnum == 14 | x1$trialnum == 22 | x1$trialnum == 30 | x1$trialnum == 38 | x1$trialnum == 46] <- 6
+x1$trialnum2[x1$trialnum == 7 | x1$trialnum == 15 | x1$trialnum == 23 | x1$trialnum == 31 | x1$trialnum == 39 | x1$trialnum == 47] <- 7
+x1$trialnum2[x1$trialnum == 8 | x1$trialnum == 16 | x1$trialnum == 24 | x1$trialnum == 32 | x1$trialnum == 40 | x1$trialnum == 48] <- 8
+
+aembreakdown <- x1
+```
+
+add in trialtype info for orig.sample4
+```{r}
+z1 <- ddply(aembreakdown,.(subID,trialnum),summarise,trialtype=(unique(type,na.rm = TRUE)))  
+z1 <- subset(z1, trialtype < 3)
+
+orig.sample4$trialtype <- 3
+
+for (j in 1:length(z1$subID)) {
+  x <- z1$subID[j]
+  y <- z1$trialnum[j]
+  z <- z1$trialtype[j]
+  orig.sample4$trialtype[orig.sample4$subID==x & orig.sample4$TRIAL_INDEX==y] <- z
+  }
+```
+
+
+number of trials completed per subject
+```{r}
+v1 <- ddply(orig.sample3,.(subID),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+v1$group <- 1
+names(v1)[2] <- "aem"
+
+
+ggplot(v1,aes(x=factor(subID),y=aem))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+
+  ggtitle("Number of trials included per subject (max = 42)")+
+  labs(x = "Subject ID", y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+  scale_y_continuous(limits=c(0,42),breaks=seq(0,42,2))+
+  geom_hline(yintercept = zz, color="coral",size=1.5)
+
+v1$percent <- v1$aem/42
+z <- mean(v1$percent)
+
+  scale_y_continuous(limits=c(0,42),breaks=seq(0,42,2))
+
+v1$percent <- v1$aem/42
+
+ggplot(v1,aes(x=factor(subID),y=percent))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Percent of trials included per subject (max = 42)")+
+  labs(x = "Subject ID", y = "% of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  theme(legend.position="none")+
+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,.1))+
+  geom_hline(yintercept = z, color="coral",size=1.5)
+
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,.1))+
+  geom_hline(yintercept = z, color="coral",size=1.5)
+
+=======
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,.1))
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,.1))
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+```
+
+number of trials broken down by block and switch
+```{r}
+<<<<<<< HEAD
+a1 <- ddply(orig.sample4,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+a1 <- ddply(orig.sample4,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+=======
+a1 <- ddply(orig.sample3,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+a1 <- ddply(orig.sample3,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+a2 <- ddply(a1,.(block,switch),summarise,trials=sum(trials,na.rm = TRUE))
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(a2,aes(x=factor(switch),y=trials,fill=factor(switch),color=factor(switch)))+
+  geom_bar(stat="identity",position=dodge)+
+  labs(y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_y_continuous(limits=c(0,200),breaks=seq(0,200,25))+guides(fill=FALSE)
+```
+
+number of babies broken down by block and switch
+```{r}
+
+b1 <- ddply(orig.sample4,.(block,switch),summarise,numsubjects=length(unique(subID,na.rm = TRUE)))  
+
+b1 <- ddply(orig.sample4,.(block,switch),summarise,numsubjects=length(unique(subID,na.rm = TRUE)))  
+
+b1 <- ddply(orig.sample3,.(block,switch),summarise,numsubjects=length(unique(subID,na.rm = TRUE)))  
+
+b1 <- ddply(orig.sample3,.(block,switch),summarise,numsubjects=length(unique(subID,na.rm = TRUE)))  
+
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(b1,aes(x=factor(switch),y=numsubjects,fill=factor(switch),color=factor(switch)))+
+  geom_bar(stat="identity",position=dodge)+
+  labs(y = "Number of babies")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_y_continuous(limits=c(0,34),breaks=seq(0,34,2))+guides(fill=FALSE)
+```
+
+AEM break down by number and percentage for each subject
+```{r}
+z1 <- ddply(orig.sample4,.(subID),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+z1 <- ddply(orig.sample4,.(subID),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+z1 <- ddply(orig.sample3,.(subID),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+z1 <- ddply(orig.sample3,.(subID),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+z1$group <- 1
+names(z1)[2] <- "numoftrials"
+
+#breaking it down for correct and incorrect
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+z2 <- ddply(aembreakdown,.(subID,type),summarise,numoftrials=length(unique(trialnum,na.rm = TRUE)))  
+z2 <- subset(z2, type < 3) #only want correct and incorrect
+z3 <- subset(z2, type==1)
+z3$type <- NULL
+z3$group <- 3
+
+<<<<<<< HEAD
+#exclude: 3, 4, 16, 19, 22, 27, 29, 30 (8 subs excluded)
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+#exclude: 3, 4, 16, 19, 22, 27, 29, 30 (8 subs excluded)
+=======
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+newData1 <- data.frame(subID = "2", numoftrials = "0", group = "3")
+newData2 <- data.frame(subID = "7", numoftrials = "0", group = "3")
+newData3 <- data.frame(subID = "8", numoftrials = "0", group = "3")
+newData4 <- data.frame(subID = "17", numoftrials = "0", group = "3")
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+newData5 <- data.frame(subID = "21", numoftrials = "0", group = "3")
+newData6 <- data.frame(subID = "31", numoftrials = "0", group = "3")
+
+z3 <- rbind( z3[1,], newData1, z3[2:20,] )
+z3 <- rbind( z3[1:4,], newData2, z3[5:21,] )
+z3 <- rbind( z3[1:5,], newData3, z3[6:22,] )
+z3 <- rbind( z3[1:13,], newData4, z3[14:23,] )
+z3 <- rbind( z3[1:16,], newData5, z3[17:24,] )
+z3 <- rbind( z3[1:22,], newData6, z3[23:25,] )
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+newData5 <- data.frame(subID = "19", numoftrials = "0", group = "3")
+newData6 <- data.frame(subID = "21", numoftrials = "0", group = "3")
+newData7 <- data.frame(subID = "22", numoftrials = "0", group = "3")
+newData8 <- data.frame(subID = "27", numoftrials = "0", group = "3")
+newData9 <- data.frame(subID = "31", numoftrials = "0", group = "3")
+
+z3 <- rbind( z3[1,], newData1, z3[2:25,] )
+z3 <- rbind( z3[1:6,], newData2, z3[7:26,] )
+z3 <- rbind( z3[1:7,], newData3, z3[8:27,] )
+z3 <- rbind( z3[1:16,], newData4, z3[17:28,] )
+z3 <- rbind( z3[1:18,], newData5, z3[19:29,] )
+z3 <- rbind( z3[1:20,], newData6, z3[21:30,] )
+z3 <- rbind( z3[1:21,], newData7, z3[22:31,] )
+z3 <- rbind( z3[1:26,], newData8, z3[27:32,] )
+z3 <- rbind( z3[1:30,], newData9, z3[31:33,] )
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+<<<<<<< HEAD
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+z3$numoftrials <- as.numeric(as.character(z3$numoftrials))
+z3$subID <- as.numeric(as.character(z3$subID))
+
+z4 <- subset(z2, type==2)
+z4$type <- NULL
+z4$group <- 2
+
+newData1 <- data.frame(subID = "3", numoftrials = "0", group = "2")
+newData2 <- data.frame(subID = "8", numoftrials = "0", group = "2")
+newData3 <- data.frame(subID = "11", numoftrials = "0", group = "2")
+newData4 <- data.frame(subID = "14", numoftrials = "0", group = "2")
+newData5 <- data.frame(subID = "18", numoftrials = "0", group = "2")
+newData6 <- data.frame(subID = "19", numoftrials = "0", group = "2")
+newData7 <- data.frame(subID = "21", numoftrials = "0", group = "2")
+newData8 <- data.frame(subID = "22", numoftrials = "0", group = "2")
+newData9 <- data.frame(subID = "25", numoftrials = "0", group = "2")
+newData10 <- data.frame(subID = "30", numoftrials = "0", group = "2")
+newData11 <- data.frame(subID = "34", numoftrials = "0", group = "2")
+
+z4 <- rbind( z4[1:2,], newData1, z4[3:23,] )
+z4 <- rbind( z4[1:7,], newData2, z4[8:24,] )
+z4 <- rbind( z4[1:10,], newData3, z4[11:25,] )
+z4 <- rbind( z4[1:13,], newData4, z4[14:26,] )
+z4 <- rbind( z4[1:17,], newData5, z4[18:27,] )
+z4 <- rbind( z4[1:18,], newData6, z4[19:28,] )
+z4 <- rbind( z4[1:20,], newData7, z4[21:29,] )
+z4 <- rbind( z4[1:21,], newData8, z4[22:30,] )
+z4 <- rbind( z4[1:24,], newData9, z4[25:31,] )
+z4 <- rbind( z4[1:29,], newData10, z4[30:32,] )
+z4 <- rbind( z4[1:33,], newData11)
+z4$numoftrials <- as.numeric(as.character(z4$numoftrials))
+z4$subID <- as.numeric(as.character(z4$subID))
+
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+#exclude: 3, 4, 16, 19, 22, 27, 29, 30 (8 subs excluded)
+z4 <- subset(z4, subID != 3)
+z4 <- subset(z4, subID != 4)
+z4 <- subset(z4, subID != 16)
+z4 <- subset(z4, subID != 19)
+z4 <- subset(z4, subID != 22)
+z4 <- subset(z4, subID != 27)
+z4 <- subset(z4, subID != 29)
+z4 <- subset(z4, subID != 30)
+
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+=======
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+#group 1 = all trials, group 2 = incorrect, group 3= correct
+z1$numoftrials <- z1$numoftrials - z4$numoftrials - z3$numoftrials
+
+zfinal <- rbind(z1,z4,z3)
+sort(zfinal$subID)
+ggplot(zfinal,aes(x=factor(subID),y=numoftrials,color=factor(group),fill=factor(group)))+
+  geom_bar(stat="identity")+
+  labs(x = "Subject", y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Trial breakdown",breaks=c("1","2","3"),labels=c("no AEM", "incorrect AEMs","correct AEMs"))+
+  scale_color_brewer(palette="Set3")+
+  scale_y_continuous(limits=c(0,48),breaks=seq(0,48,4))+
+  theme(legend.position = "bottom")
+
+#percent
+zfinal$percent <- 0
+subs <- unique(zfinal$subID)
+
+for (j in 1:length(subs)) {
+ t <- sum(zfinal$numoftrials[zfinal$subID==subs[j]])
+ zfinal$percent[zfinal$subID==subs[j]] <- zfinal$numoftrials[zfinal$subID==subs[j]] / t
+}
+
+ggplot(zfinal,aes(x=factor(subID),y=percent,color=factor(group),fill=factor(group)))+
+  geom_bar(stat="identity")+
+  labs(x = "Subject", y = "% of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Trial breakdown",breaks=c("1","2","3"),labels=c("no AEM", "incorrect AEMs","correct AEMs"))+
+  scale_color_brewer(palette="Set3")+
+  scale_y_continuous(label=percent,limits=c(0,1),breaks=seq(0,1,.2))+
+  theme(legend.position = "bottom")
+```
+
+AEM breakdown by block and switch
+```{r}
+z1 <- ddply(orig.sample4,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+z1 <- ddply(orig.sample3,.(subID,block,switch),summarise,trials=length(unique(TRIAL_INDEX,na.rm = TRUE)))  
+
+z2 <- ddply(z1,.(block,switch),summarise,trials=sum(trials,na.rm = TRUE))
+z2$group <- 1
+names(z2)[3] <- "trials"
+
+#breaking it down for correct and incorrect
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+z3 <- ddply(aembreakdown,.(subID,block,switch,type),summarise,numoftrials=length(unique(trialnum,na.rm = TRUE)))  
+z3 <- subset(z3, type < 3) #only want correct and incorrect
+z4 <- subset(z3, type==1)
+z4$type <- NULL
+z4$group <- 3
+
+z5 <- subset(z3, type==2)
+z5$type <- NULL
+z5$group <- 2
+
+z4 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/aem_group3_feb7.csv") 
+z5 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/aem_group2_feb7.csv") 
+
+z4 <- subset(z4, subID != 3)
+z4 <- subset(z4, subID != 4)
+z4 <- subset(z4, subID != 16)
+z4 <- subset(z4, subID != 19)
+z4 <- subset(z4, subID != 22)
+z4 <- subset(z4, subID != 27)
+z4 <- subset(z4, subID != 29)
+z4 <- subset(z4, subID != 30)
+
+z5 <- subset(z5, subID != 3)
+z5 <- subset(z5, subID != 4)
+z5 <- subset(z5, subID != 16)
+z5 <- subset(z5, subID != 19)
+z5 <- subset(z5, subID != 22)
+z5 <- subset(z5, subID != 27)
+z5 <- subset(z5, subID != 29)
+z5 <- subset(z5, subID != 30)
+
+z6 <- ddply(z4,.(block,switch),summarise,trials=sum(numoftrials,na.rm = TRUE)) #correct
+z6$group <- 3
+z7 <- ddply(z5,.(block,switch),summarise,trials=sum(numoftrials,na.rm = TRUE)) #incorrect
+z7$group <- 2
+
+#group 1 = all trials, group 2 = incorrect, group 3= correct
+z2$trials <- z2$trials - z6$trials - z7$trials
+
+zfinal <- rbind(z2,z6,z7)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(zfinal,aes(x=factor(switch),y=trials,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity")+
+  labs(y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_y_continuous(limits=c(0,125),breaks=seq(0,125,25))+
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+  scale_y_continuous(limits=c(0,125),breaks=seq(0,125,25))+
+=======
+  scale_y_continuous(limits=c(0,200),breaks=seq(0,200,25))+
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+  scale_y_continuous(limits=c(0,200),breaks=seq(0,200,25))+
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+  scale_fill_brewer(palette="Set3",name="Trial breakdown",breaks=c("1","2","3"),labels=c("no AEM", "incorrect AEMs","correct AEMs"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")
+
+#just looking at AEM trials
+zfinal2 <- subset(zfinal, group > 1)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(zfinal2,aes(x=factor(switch),y=trials,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity")+
+  labs(y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_y_continuous(limits=c(0,40),breaks=seq(0,40,5))+
+  scale_color_manual(values = c("#fffcb7", "#bebad9"))+
+  scale_fill_manual(values = c("#fffcb7", "#bebad9"),name="Trial breakdown",breaks=c("2","3"),labels=c("incorrect AEMs","correct AEMs"))+
+  theme(legend.position = "bottom")
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+
+#just looking at AEM trials version 2
+zfinal2 <- subset(zfinal, group > 1)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+dodge <- position_dodge(width=0.9)
+
+ggplot(zfinal2,aes(x=factor(switch),y=trials,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity",position=dodge)+
+  labs(y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_y_continuous(limits=c(0,25),breaks=seq(0,25,5))+
+  scale_color_manual(values = c("#fffcb7", "#bebad9"))+
+  scale_fill_manual(values = c("#fffcb7", "#bebad9"),name="Trial breakdown",breaks=c("2","3"),labels=c("incorrect AEMs","correct AEMs"))+
+  theme(legend.position = "bottom")
+
+>>>>>>> e07315faf246ed4d60125eedc34ea193d6ecb04d
+<<<<<<< HEAD
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+=======
+>>>>>>> 619613d5808cccb9dddffadafe69798ac9e89045
+```
+
+for correct and incorrect AEM, count number of babies in each subblock
+```{r}
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+e1 <- subset(aembreakdown, type < 3)
+e2 <- ddply(e1,.(subID,trialnum2,block,switch),summarise,type=mean(type))  
+e3 <- ddply(e2,.(block,switch,type),summarise,numofbabies = length(unique(subID,na.rm = TRUE)))
+e3$group <- 3
+e3$group[e3$type==2] <- 2
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(e3,aes(x=factor(switch),y=numofbabies,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity")+
+  labs(y = "Number of babies")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  guides(color=FALSE)+
+  scale_color_manual(values = c("#fffcb7", "#bebad9"))+
+  scale_fill_manual(values = c("#fffcb7", "#bebad9"),name="Trial breakdown",breaks=c("2","3"),labels=c("incorrect AEMs","correct AEMs"))+
+  scale_y_continuous(limits=c(0,25),breaks=seq(0,25,5))+
+  theme(legend.position = "bottom")
+
+#focusing on just correct AEM
+e1 <- subset(aembreakdown, type ==1)
+e2 <- ddply(e1,.(subID,block,trialnum,trialnum2,switch),summarise,type=mean(type))  
+e3 <- ddply(e2,.(subID,block,switch),summarise,numofaem = length(unique(trialnum,na.rm = TRUE)))
+
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(e3,aes(x=factor(switch),y=numofaem,fill=factor(subID),color=factor(subID)))+
+  geom_bar(stat="identity")+
+  labs(y = "Number of correct AEMs")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  guides(color=FALSE)+
+  scale_y_continuous(limits=c(0,25),breaks=seq(0,25,5))+
+  theme(legend.position = "none")
+
+#focusing on just incorrect AEM
+e1 <- subset(aembreakdown, type ==2)
+e2 <- ddply(e1,.(subID,block,trialnum,trialnum2,switch),summarise,type=mean(type))  
+e3 <- ddply(e2,.(subID,block,switch),summarise,numofaem = length(unique(trialnum,na.rm = TRUE)))
+
+split <- c(`1` = "block 1",`2` = "block 2",`3` = "block 3")
+
+ggplot(e3,aes(x=factor(switch),y=numofaem,fill=factor(subID),color=factor(subID)))+
+  geom_bar(stat="identity")+
+  labs(y = "Number of incorrect AEMs")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16),axis.title.x=element_blank())+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  guides(color=FALSE)+
+  theme(legend.position = "none")+
+  scale_y_continuous(limits=c(0,25),breaks=seq(0,25,5))
+```
+
+count number of aems (correct and incorrect) for each subject, separate it for each subblock
+```{r}
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+#correct
+e1 <- subset(aembreakdown, type ==1)
+e2 <- ddply(e1,.(subID,block,trialnum,trialnum2,switch),summarise,type=mean(type))  
+e3 <- ddply(e2,.(subID,block,switch),summarise,numofaem = length(unique(trialnum,na.rm = TRUE)))
+e3$sublock[e3$block==1 & e3$switch==1] <- 1
+e3$sublock[e3$block==1 & e3$switch==2] <- 2
+e3$sublock[e3$block==2 & e3$switch==1] <- 3
+e3$sublock[e3$block==2 & e3$switch==2] <- 4
+e3$sublock[e3$block==3 & e3$switch==1] <- 5
+e3$sublock[e3$block==3 & e3$switch==2] <- 6
+
+ggplot(e3,aes(x=factor(subID),y=numofaem,fill=factor(sublock),color=factor(sublock)))+
+  geom_bar(stat="identity")+
+  ggtitle("Correct AEMs")+
+  labs(x = "Subject", y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=14, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  scale_fill_brewer(palette="YlGn",name="Subblock")+
+  scale_color_brewer(palette="YlGn")+
+  scale_y_continuous(limits=c(0,14),breaks=seq(0,14,1))+
+  guides(color=FALSE)+
+  theme(legend.position = "bottom")
+
+#incorrect
+e1 <- subset(aembreakdown, type ==2)
+e2 <- ddply(e1,.(subID,block,trialnum,trialnum2,switch),summarise,type=mean(type))  
+e3 <- ddply(e2,.(subID,block,switch),summarise,numofaem = length(unique(trialnum,na.rm = TRUE)))
+e3$sublock[e3$block==1 & e3$switch==1] <- 1
+e3$sublock[e3$block==1 & e3$switch==2] <- 2
+e3$sublock[e3$block==2 & e3$switch==1] <- 3
+e3$sublock[e3$block==2 & e3$switch==2] <- 4
+e3$sublock[e3$block==3 & e3$switch==1] <- 5
+e3$sublock[e3$block==3 & e3$switch==2] <- 6
+
+ggplot(e3,aes(x=factor(subID),y=numofaem,fill=factor(sublock),color=factor(sublock)))+
+  geom_bar(stat="identity")+
+  ggtitle("Incorrect AEMs")+
+  labs(x = "Subject", y = "Number of trials")+
+  theme(plot.title = element_text(face="bold", size=14, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  scale_fill_brewer(palette="YlOrBr",name="Subblock")+
+  scale_color_brewer(palette="YlOrBr")+
+  scale_y_continuous(limits=c(0,14),breaks=seq(0,14,1))+
+  guides(color=FALSE)+
+  theme(legend.position = "bottom")
+```
+
+Number of babies / percent of babies that make AEM for each trial graph
+facet _wrap by switch, x = trial number, color = incorrect vs correct
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+```{r}
+#number of babies
+b1 <- ddply(aembreakdown,.(block,switch,trialnum2,type),summarise,numbabies=length(unique(subID)))
+b1 <- subset(b1, type <3)
+
+b2 <- ddply(b1,.(trialnum2,switch,type),summarise,meannum=mean(numbabies),
+            sdnum = sd(numbabies, na.rm = TRUE)/sqrt(length(numbabies)))
+b2$group[b2$type==2] <- 2
+b2$group[b2$type==1] <- 3
+
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = meannum + sdnum, ymin=meannum - sdnum)
+split <- c(`1` = "Preswitch",`2` = "Postswitch")
+
+ggplot(b2,aes(x=factor(trialnum2),y=meannum,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity",position=dodge)+
+  labs(x = "Trial number", y = "Number of babies")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")+
+  facet_wrap(~switch,labeller = as_labeller(split),dir="v")+
+  scale_color_manual(values = c("#fffcb7", "#bebad9"))+
+  scale_fill_manual(values = c("#fffcb7", "#bebad9"),name="AEM Type",breaks=c("2","3"),labels=c("incorrect AEMs","correct AEMs"))+
+  theme(strip.text = element_text(size=16))+
+  scale_y_continuous(limits=c(0,7),breaks=seq(0,7,1))
+
+#percent of babies
+#count how many babies made correct AEM, for every trial of each block and separating for pre and post
+d1 <- ddply(aembreakdown,.(block,trialnum2,switch,type),summarise,numbabies=length(unique(subID,na.rm = TRUE)))
+d2 <- subset(d1, type< 3) #babies that made correct and incorrect AEM
+
+newData1 <- data.frame(block = "1", trialnum2 = "4", switch = "1", type = "2", numbabies = "0")
+newData2 <- data.frame(block = "1", trialnum2 = "5", switch = "1", type = "1", numbabies = "0")
+newData3 <- data.frame(block = "1", trialnum2 = "6", switch = "1", type = "1", numbabies = "0")
+newData4 <- data.frame(block = "1", trialnum2 = "7", switch = "2", type = "1", numbabies = "0")
+newData5 <- data.frame(block = "2", trialnum2 = "2", switch = "2", type = "1", numbabies = "0")
+newData6 <- data.frame(block = "2", trialnum2 = "3", switch = "1", type = "2", numbabies = "0")
+newData7 <- data.frame(block = "2", trialnum2 = "3", switch = "2", type = "2", numbabies = "0")
+newData8 <- data.frame(block = "2", trialnum2 = "6", switch = "2", type = "2", numbabies = "0")
+newData9 <- data.frame(block = "3", trialnum2 = "2", switch = "1", type = "1", numbabies = "0")
+newData10 <- data.frame(block = "3", trialnum2 = "2", switch = "2", type = "1", numbabies = "0")
+newData11 <- data.frame(block = "3", trialnum2 = "3", switch = "1", type = "1", numbabies = "0")
+newData12 <- data.frame(block = "3", trialnum2 = "3", switch = "2", type = "1", numbabies = "0")
+newData13 <- data.frame(block = "3", trialnum2 = "7", switch = "2", type = "2", numbabies = "0")
+newData14 <- data.frame(block = "3", trialnum2 = "8", switch = "2", type = "2", numbabies = "0")
+
+d2 <- rbind( d2[1:9,], newData1, d2[10:70,] )
+d2 <- rbind( d2[1:12,], newData2, d2[13:71,] )
+d2 <- rbind( d2[1:16,], newData3, d2[17:72,] )
+d2 <- rbind( d2[1:22,], newData4, d2[23:73,] )
+d2 <- rbind( d2[1:30,], newData5, d2[31:74,] )
+d2 <- rbind( d2[1:33,], newData6, d2[34:75,] )
+d2 <- rbind( d2[1:35,], newData7, d2[36:76,] )
+d2 <- rbind( d2[1:47,], newData8, d2[48:77,] )
+d2 <- rbind( d2[1:56,], newData9, d2[57:78,] )
+d2 <- rbind( d2[1:58,], newData10, d2[59:79,] )
+d2 <- rbind( d2[1:60,], newData11, d2[61:80,] )
+d2 <- rbind( d2[1:62,], newData12, d2[63:81,] )
+d2 <- rbind( d2[1:78,], newData13, d2[79:82,] )
+d2 <- rbind( d2[1:83,], newData14)
+d2$numbabies <- as.numeric(as.character(d2$numbabies))
+#d2 is how many number of babies made correct and incorrect AEMs
+#d3 is how many number of babies total for each 
+d3 <- ddply(d1,.(block,trialnum2,switch),summarise,numbabies=sum(numbabies,na.rm = TRUE))
+y <- rep(d3$numbabies, each =2)
+d2$percent <- d2$numbabies / y
+
+#count how many babies made correct AEM, for each pre and post, but grouping blocks together
+d4 <- ddply(d2,.(trialnum2,switch,type),summarise,meanpercent=mean(percent),
+            sdpercent = sd(percent, na.rm = TRUE)/sqrt(length(percent)))
+
+dodge <- position_dodge(width=0.9)
+limits <- aes(ymax = meanpercent + sdpercent, ymin=meanpercent - sdpercent)
+split <- c(`1` = "Preswitch",`2` = "Postswitch")
+d4$group[d4$type==2] <- 2
+d4$group[d4$type==1] <- 3
+
+ggplot(d4,aes(x=factor(trialnum2),y=meanpercent,fill=factor(group),color=factor(group)))+
+  geom_bar(stat="identity",position=dodge)+
+  labs(x = "Trial number", y = "% of babies")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  guides(color=FALSE)+
+  geom_errorbar(limits, width=0.25,position = position_dodge(0.9),color="black")+
+  facet_wrap(~switch,labeller = as_labeller(split),dir="v")+
+  scale_color_manual(values = c("#fffcb7", "#bebad9"))+
+  scale_fill_manual(values = c("#fffcb7", "#bebad9"),name="AEM Type",breaks=c("2","3"),labels=c("incorrect AEMs","correct AEMs"))+
+  theme(strip.text = element_text(size=16))+
+  scale_y_continuous(labels=percent,limits=c(0,.3),breaks=seq(0,.3,.05))
+
+```
+
+main pupil timecourse plot for orig.sample4
+```{r}
+# screen res is 1024 x 1280 (Y X)
+#a. Y coordinate timecourse, pre and post
+#line graph
+boo1 <- ddply(orig.sample4,.(subID,switch,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(switch,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  scale_y_continuous(labels=percent,limits=c(-0.1,.1),breaks=seq(-0.1,.1,.02), expand = c(0, 0))
+
+#facet_Wrap by block
+#line graph
+boo1 <- ddply(orig.sample4,.(subID,block,switch,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(block,switch,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block,dir="v")+
+  scale_y_continuous(labels=percent,limits=c(-0.2,.2),breaks=seq(-0.2,.2,.05), expand = c(0, 0))
+```
+
+eccentricity timecourse plot for orig.sample2
+```{r}
+# screen res is 1024 x 1280 (Y X)
+#a. Y coordinate timecourse, pre and post
+#line graph
+boo <- subset(orig.sample4, TIMECODE < 4001)
+boo$RIGHT_GAZE_X2 <- abs(boo$RIGHT_GAZE_X-640)
+
+boo1 <- ddply(boo,.(subID,switch,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X2,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: eccentricity")+
+  labs(x = "Time", y = "absolute distance from center of screen")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  scale_y_continuous(limits=c(0,400),breaks=seq(0,400,50), expand = c(0, 0))
+
+#facet_Wrap by block
+#line graph
+boo1 <- ddply(boo,.(subID,block,switch,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X2,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(block,switch,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: eccentricity")+
+  labs(x = "Time", y = "absolute distance from center of screen")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block,dir="v")+
+  scale_y_continuous(limits=c(0,400),breaks=seq(0,400,50), expand = c(0, 0))
+```
+
+Look at pupil response after dividing trials to early (trials 2-4) vs late (5-8) for each sub block
+```{r}
+orig.sample4$earlylate <- 1
+orig.sample4$earlylate[orig.sample4$trialnum > 4] <- 2
+
+boo1 <- ddply(orig.sample4,.(subID,block,switch,earlylate,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(block,switch,earlylate,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+boo3 <- subset(boo2, earlylate==1)
+
+ggplot(boo3,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change early (trials 2-4)")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block,dir="v")+
+  scale_y_continuous(labels=percent,limits=c(-0.2,.2),breaks=seq(-0.2,.2,.05), expand = c(0, 0))
+
+boo4 <- subset(boo2, earlylate==2)
+
+ggplot(boo4,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change late (5-8)")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block,dir="v")+
+  scale_y_continuous(labels=percent,limits=c(-0.2,.2),breaks=seq(-0.2,.2,.05), expand = c(0, 0))
+```
+
+Timecourse of X coordinate for pre-switch
+x = time, y = absolute distance from center, 
+color = num of AEM during preswitch, 
+0 vs not 0
+```{r}
+hoo <- subset(aembreakdown, type==1 & switch==1) #only care about correct AEM and preswitch
+
+#count number of AEMs made per subject
+hoo2 <- ddply(hoo,.(subID),summarise,numAEM=length(unique(trialnum,na.rm = TRUE)))
+
+newData1 <- data.frame(subID = "2", numAEM = "0")
+newData2 <- data.frame(subID = "5", numAEM = "0")
+newData3 <- data.frame(subID = "7", numAEM = "0")
+newData4 <- data.frame(subID = "8", numAEM = "0")
+newData5 <- data.frame(subID = "11", numAEM = "0")
+newData6 <- data.frame(subID = "13", numAEM = "0")
+newData7 <- data.frame(subID = "15", numAEM = "0")
+newData8 <- data.frame(subID = "17", numAEM = "0")
+newData9 <- data.frame(subID = "21", numAEM = "0")
+newData10 <- data.frame(subID = "31", numAEM = "0")
+
+hoo2 <- rbind( hoo2[1,], newData1, hoo2[2:16,] )
+hoo2 <- rbind( hoo2[1:2,], newData2, hoo2[3:17,] )
+hoo2 <- rbind( hoo2[1:4,], newData3, hoo2[5:18,] )
+hoo2 <- rbind( hoo2[1:5,], newData4, hoo2[6:19,] )
+hoo2 <- rbind( hoo2[1:8,], newData5, hoo2[9:20,] )
+hoo2 <- rbind( hoo2[1:10,], newData6, hoo2[11:21,] )
+hoo2 <- rbind( hoo2[1:12,], newData7, hoo2[13:22,] )
+hoo2 <- rbind( hoo2[1:13,], newData8, hoo2[14:23,] )
+hoo2 <- rbind( hoo2[1:16,], newData9, hoo2[17:24,] )
+hoo2 <- rbind( hoo2[1:22,], newData10, hoo2[23:25,] )
+hoo2$numAEM <- as.numeric(as.character(hoo2$numAEM))
+
+which(hoo2$numAEM==0) #2  3  5  6  9 11 13 14 17 23
+which(hoo2$numAEM==1) # 1  4  7  8 19 22 24 25 26
+which(hoo2$numAEM==2) #10 15 18 20 21
+which(hoo2$numAEM==3) #12 16
+which(hoo2$numAEM==4) #none
+which(hoo2$numAEM==5) #none
+which(hoo2$numAEM==6) #none
+
+hoo2$group <- 1
+hoo2$group[hoo2$numAEM > 0] <- 2
+which(hoo2$group==2) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+which(hoo2$group==1) #2  3  5  6  9 11 13 14 17 23
+length(which(hoo2$group==2)) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+length(which(hoo2$group==1))
+#0 vs not 0
+#b. X coordinate timecourse, preswitch
+boo <- subset(orig.sample4, switch==1)
+boo$RIGHT_GAZE_X2 <- abs(boo$RIGHT_GAZE_X-640)
+
+boo1 <- ddply(boo,.(subID,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X2,na.rm = TRUE)) #collapse across trials
+boo1$group <- 1
+
+#1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+boo1$group[boo1$subID==1 | boo1$subID==4 |boo1$subID==7 |boo1$subID==8 |boo1$subID==10| boo1$subID==12|boo1$subID==15|boo1$subID==16|boo1$subID==18|boo1$subID==19|boo1$subID==20|boo1$subID==21|boo1$subID==22|boo1$subID==24|boo1$subID==25|boo1$subID==26] <- 2
+
+boo2 <- ddply(boo1,.(group,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(group),fill=factor(group)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for preswitch")+
+  labs(x = "Time", y = "Absolute distance from center")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,600),breaks=seq(0,600,100), expand = c(0, 0))+
+  scale_fill_brewer(palette="Reds",name="Number of correct AEMs made during preswitch",breaks=c("1","2"),labels=c("0", "1-3"))+
+  scale_color_brewer(palette="Reds")+
+  guides(color=FALSE)+theme(legend.position = "bottom")
+
+```
+
+Timecourse of X coordinate for post-switch
+x = time, y = absolute distance from center, 
+color = num of AEM during postswitch, 
+0 vs not 0
+```{r}
+hoo <- subset(aembreakdown, type==1 & switch==2) #only care about correct AEM and postswitch
+
+#count number of AEMs made per subject
+hoo2 <- ddply(hoo,.(subID),summarise,numAEM=length(unique(trialnum,na.rm = TRUE)))
+
+newData1 <- data.frame(subID = "1", numAEM = "0")
+newData2 <- data.frame(subID = "2", numAEM = "0")
+newData3 <- data.frame(subID = "6", numAEM = "0")
+newData4 <- data.frame(subID = "7", numAEM = "0")
+newData5 <- data.frame(subID = "8", numAEM = "0")
+newData6 <- data.frame(subID = "9", numAEM = "0")
+newData7 <- data.frame(subID = "10", numAEM = "0")
+newData8 <- data.frame(subID = "12", numAEM = "0")
+newData9 <- data.frame(subID = "14", numAEM = "0")
+newData10 <- data.frame(subID = "17", numAEM = "0")
+newData11 <- data.frame(subID = "21", numAEM = "0")
+newData12 <- data.frame(subID = "25", numAEM = "0")
+newData13 <- data.frame(subID = "26", numAEM = "0")
+newData14 <- data.frame(subID = "28", numAEM = "0")
+newData15 <- data.frame(subID = "31", numAEM = "0")
+newData16 <- data.frame(subID = "33", numAEM = "0")
+
+newData1$numAEM <- as.numeric(as.character(newData1$numAEM))
+newData1$subID <- as.numeric(as.character(newData1$subID))
+hoo2 <- rbind(newData1, hoo2)
+hoo2 <- rbind( hoo2[1,], newData2, hoo2[2:11,] )
+hoo2 <- rbind( hoo2[1:3,], newData3, hoo2[4:12,] )
+hoo2 <- rbind( hoo2[1:4,], newData4, hoo2[5:13,] )
+hoo2 <- rbind( hoo2[1:5,], newData5, hoo2[6:14,] )
+hoo2 <- rbind( hoo2[1:6,], newData6, hoo2[7:15,] )
+hoo2 <- rbind( hoo2[1:7,], newData7, hoo2[8:16,] )
+hoo2 <- rbind( hoo2[1:9,], newData8, hoo2[10:17,] )
+hoo2 <- rbind( hoo2[1:11,], newData9, hoo2[12:18,] )
+hoo2 <- rbind( hoo2[1:13,], newData10, hoo2[14:19,] )
+hoo2 <- rbind( hoo2[1:16,], newData11, hoo2[17:20,] )
+hoo2 <- rbind( hoo2[1:19,], newData12, hoo2[20:21,] )
+hoo2 <- rbind( hoo2[1:20,], newData13, hoo2[21:22,] )
+hoo2 <- rbind( hoo2[1:21,], newData14, hoo2[22:23,] )
+hoo2 <- rbind( hoo2[1:22,], newData15, hoo2[23:24,] )
+hoo2 <- rbind( hoo2[1:24,], newData16, hoo2[25:25,] )
+hoo2$numAEM <- as.numeric(as.character(hoo2$numAEM))
+
+which(hoo2$numAEM==0) #1  2  4  5  6  7  8 10 12 14 17 20 21 22 23 25
+which(hoo2$numAEM==1) # 11 15 24
+which(hoo2$numAEM==2) #3  9 13 19
+which(hoo2$numAEM==3) #26
+which(hoo2$numAEM==4) #16
+which(hoo2$numAEM==5) #18
+which(hoo2$numAEM==6) #none
+
+hoo2$group <- 1
+hoo2$group[hoo2$numAEM > 0] <- 2
+which(hoo2$group==2) #3  9 11 13 15 16 18 19 24 26
+which(hoo2$group==1) #1  2  4  5  6  7  8 10 12 14 17 20 21 22 23 25
+length(which(hoo2$group==2))
+length(which(hoo2$group==1))
+#0 vs not 0
+#b. X coordinate timecourse, preswitch
+coo <- subset(orig.sample4, switch==1)
+coo$RIGHT_GAZE_X2 <- abs(coo$RIGHT_GAZE_X-640)
+
+coo1 <- ddply(coo,.(subID,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X2,na.rm = TRUE)) #collapse across trials
+coo1$group <- 1
+
+#3  9 11 13 15 16 18 19 24 26
+coo1$group[coo1$subID==3 | coo1$subID==9 |coo1$subID==11 |coo1$subID==15 |coo1$subID==16| coo1$subID==18|coo1$subID==19|coo1$subID==24|coo1$subID==26] <- 2
+
+coo2 <- ddply(coo1,.(group,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(coo2,aes(x=TIMECODE,y=Xavg,color=factor(group),fill=factor(group)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for postswitch")+
+  labs(x = "Time", y = "Absolute distance from center")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,600),breaks=seq(0,600,100), expand = c(0, 0))+
+  scale_fill_brewer(palette="Greens",name="Number of correct AEMs made during postswitch",breaks=c("1","2"),labels=c("0", "1-5"))+
+  scale_color_brewer(palette="Greens")+
+  guides(color=FALSE)+theme(legend.position = "bottom")
+
+```
+
+Timecourse of X coordinate for post-switch
+x = time, y = absolute distance from center, 
+color = num of AEM during preswitch, 
+0 vs not 0
+
+```{r}
+hoo <- subset(aembreakdown, type==1 & switch==1) #only care about correct AEM and preswitch
+
+#count number of AEMs made per subject
+hoo2 <- ddply(hoo,.(subID),summarise,numAEM=length(unique(trialnum,na.rm = TRUE)))
+
+newData1 <- data.frame(subID = "2", numAEM = "0")
+newData2 <- data.frame(subID = "5", numAEM = "0")
+newData3 <- data.frame(subID = "7", numAEM = "0")
+newData4 <- data.frame(subID = "8", numAEM = "0")
+newData5 <- data.frame(subID = "11", numAEM = "0")
+newData6 <- data.frame(subID = "13", numAEM = "0")
+newData7 <- data.frame(subID = "15", numAEM = "0")
+newData8 <- data.frame(subID = "17", numAEM = "0")
+newData9 <- data.frame(subID = "21", numAEM = "0")
+newData10 <- data.frame(subID = "31", numAEM = "0")
+
+hoo2 <- rbind( hoo2[1,], newData1, hoo2[2:16,] )
+hoo2 <- rbind( hoo2[1:2,], newData2, hoo2[3:17,] )
+hoo2 <- rbind( hoo2[1:4,], newData3, hoo2[5:18,] )
+hoo2 <- rbind( hoo2[1:5,], newData4, hoo2[6:19,] )
+hoo2 <- rbind( hoo2[1:8,], newData5, hoo2[9:20,] )
+hoo2 <- rbind( hoo2[1:10,], newData6, hoo2[11:21,] )
+hoo2 <- rbind( hoo2[1:12,], newData7, hoo2[13:22,] )
+hoo2 <- rbind( hoo2[1:13,], newData8, hoo2[14:23,] )
+hoo2 <- rbind( hoo2[1:16,], newData9, hoo2[17:24,] )
+hoo2 <- rbind( hoo2[1:22,], newData10, hoo2[23:25,] )
+hoo2$numAEM <- as.numeric(as.character(hoo2$numAEM))
+
+which(hoo2$numAEM==0) #2  3  5  6  9 11 13 14 17 23
+which(hoo2$numAEM==1) # 1  4  7  8 19 22 24 25 26
+which(hoo2$numAEM==2) #10 15 18 20 21
+which(hoo2$numAEM==3) #12 16
+which(hoo2$numAEM==4) #none
+which(hoo2$numAEM==5) #none
+which(hoo2$numAEM==6) #none
+
+hoo2$group <- 1
+hoo2$group[hoo2$numAEM > 0] <- 2
+which(hoo2$group==2) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+which(hoo2$group==1) #2  3  5  6  9 11 13 14 17 23
+length(which(hoo2$group==2)) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+length(which(hoo2$group==1))
+
+#0 vs not 0
+#b. X coordinate timecourse, postswitch
+coo <- subset(orig.sample4, switch==2)
+coo$RIGHT_GAZE_X2 <- abs(coo$RIGHT_GAZE_X-640)
+
+coo1 <- ddply(coo,.(subID,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X2,na.rm = TRUE)) #collapse across trials
+coo1$group <- 1
+
+#1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+coo1$group[coo1$subID==1 | coo1$subID==4 |coo1$subID==7 |coo1$subID==8 |coo1$subID==10| coo1$subID==12|coo1$subID==15|coo1$subID==16|coo1$subID==18|coo1$subID==19|coo1$subID==20|coo1$subID==21|coo1$subID==22|coo1$subID==24|coo1$subID==25|coo1$subID==26] <- 2
+
+coo2 <- ddply(coo1,.(group,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(coo2,aes(x=TIMECODE,y=Xavg,color=factor(group),fill=factor(group)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for postswitch")+
+  labs(x = "Time", y = "Absolute distance from center")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,600),breaks=seq(0,600,100), expand = c(0, 0))+
+  scale_fill_brewer(palette="Greens",name="Number of correct AEMs made during preswitch",breaks=c("1","2"),labels=c("0", "1-3"))+
+  scale_color_brewer(palette="Greens")+
+  guides(color=FALSE)+theme(legend.position = "bottom")
+
+```
+
+Comparing for timecourse of x coordinate
+facet_wrap by AEM bins (facet wrap)
+color = pre-switch vs postswitch
+```{r}
+#boo is postswitch, #coo is preswitch
+boo2$switch <- 1
+coo2$switch <- 2
+doo <- rbind(boo2,coo2)
+
+split <- c(`1` = "number of correct preswitch AEMs: 0",`2` = "number of correct preswitch AEMs: 1-3")
+
+ggplot(doo,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate")+
+  labs(x = "Time", y = "Absolute distance from center")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_fill_discrete(name="Sub-block",breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  guides(color=FALSE)+
+  facet_wrap(~group,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,600),breaks=seq(0,600,100), expand = c(0, 0))
+
+```
+
+
+Pupil timecourse for pre-switch
+x = time, y = pupil change
+color = num of AEM during preswitch, 
+0 vs not 0
+```{r}
+hoo <- subset(aembreakdown, type==1 & switch==1) #only care about correct AEM and preswitch
+
+#count number of AEMs made per subject
+hoo2 <- ddply(hoo,.(subID),summarise,numAEM=length(unique(trialnum,na.rm = TRUE)))
+
+newData1 <- data.frame(subID = "2", numAEM = "0")
+newData2 <- data.frame(subID = "5", numAEM = "0")
+newData3 <- data.frame(subID = "7", numAEM = "0")
+newData4 <- data.frame(subID = "8", numAEM = "0")
+newData5 <- data.frame(subID = "11", numAEM = "0")
+newData6 <- data.frame(subID = "13", numAEM = "0")
+newData7 <- data.frame(subID = "15", numAEM = "0")
+newData8 <- data.frame(subID = "17", numAEM = "0")
+newData9 <- data.frame(subID = "21", numAEM = "0")
+newData10 <- data.frame(subID = "31", numAEM = "0")
+
+hoo2 <- rbind( hoo2[1,], newData1, hoo2[2:16,] )
+hoo2 <- rbind( hoo2[1:2,], newData2, hoo2[3:17,] )
+hoo2 <- rbind( hoo2[1:4,], newData3, hoo2[5:18,] )
+hoo2 <- rbind( hoo2[1:5,], newData4, hoo2[6:19,] )
+hoo2 <- rbind( hoo2[1:8,], newData5, hoo2[9:20,] )
+hoo2 <- rbind( hoo2[1:10,], newData6, hoo2[11:21,] )
+hoo2 <- rbind( hoo2[1:12,], newData7, hoo2[13:22,] )
+hoo2 <- rbind( hoo2[1:13,], newData8, hoo2[14:23,] )
+hoo2 <- rbind( hoo2[1:16,], newData9, hoo2[17:24,] )
+hoo2 <- rbind( hoo2[1:22,], newData10, hoo2[23:25,] )
+hoo2$numAEM <- as.numeric(as.character(hoo2$numAEM))
+
+which(hoo2$numAEM==0) #2  3  5  6  9 11 13 14 17 23
+which(hoo2$numAEM==1) # 1  4  7  8 19 22 24 25 26
+which(hoo2$numAEM==2) #10 15 18 20 21
+which(hoo2$numAEM==3) #12 16
+which(hoo2$numAEM==4) #none
+which(hoo2$numAEM==5) #none
+which(hoo2$numAEM==6) #none
+
+hoo2$group <- 1
+hoo2$group[hoo2$numAEM > 0] <- 2
+which(hoo2$group==2) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+which(hoo2$group==1) #2  3  5  6  9 11 13 14 17 23
+length(which(hoo2$group==2)) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+length(which(hoo2$group==1))
+#0 vs not 0
+#b. X coordinate timecourse, preswitch
+boo <- subset(orig.sample4, switch==1)
+
+boo1 <- ddply(boo,.(subID,TIMECODE),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1$group <- 1
+
+#1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+boo1$group[boo1$subID==1 | boo1$subID==4 |boo1$subID==7 |boo1$subID==8 |boo1$subID==10| boo1$subID==12|boo1$subID==15|boo1$subID==16|boo1$subID==18|boo1$subID==19|boo1$subID==20|boo1$subID==21|boo1$subID==22|boo1$subID==24|boo1$subID==25|boo1$subID==26] <- 2
+
+boo2 <- ddply(boo1,.(group,TIMECODE),summarise,pupilavg=mean(pupilsize,na.rm = TRUE),sepupil=sd(pupilsize, na.rm = TRUE)/sqrt(length(pupilsize))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(group),fill=factor(group)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse preswitch")+
+  labs(x = "Time", y = "Pupil change (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(-0.1,.1),breaks=seq(-0.1,.1,.02), expand = c(0, 0))+
+  scale_fill_brewer(palette="Reds",name="Number of correct AEMs made during preswitch",breaks=c("1","2"),labels=c("0", "1-3"))+
+  scale_color_brewer(palette="Reds")+
+  guides(color=FALSE)+theme(legend.position = "bottom")
+
+```
+
+Pupil timecourse for post-switch
+x = time, y = pupil change
+color = num of AEM during preswitch, 
+0 vs not 0
+```{r}
+hoo <- subset(aembreakdown, type==1 & switch==1) #only care about correct AEM and preswitch
+
+#count number of AEMs made per subject
+hoo2 <- ddply(hoo,.(subID),summarise,numAEM=length(unique(trialnum,na.rm = TRUE)))
+
+newData1 <- data.frame(subID = "2", numAEM = "0")
+newData2 <- data.frame(subID = "5", numAEM = "0")
+newData3 <- data.frame(subID = "7", numAEM = "0")
+newData4 <- data.frame(subID = "8", numAEM = "0")
+newData5 <- data.frame(subID = "11", numAEM = "0")
+newData6 <- data.frame(subID = "13", numAEM = "0")
+newData7 <- data.frame(subID = "15", numAEM = "0")
+newData8 <- data.frame(subID = "17", numAEM = "0")
+newData9 <- data.frame(subID = "21", numAEM = "0")
+newData10 <- data.frame(subID = "31", numAEM = "0")
+
+hoo2 <- rbind( hoo2[1,], newData1, hoo2[2:16,] )
+hoo2 <- rbind( hoo2[1:2,], newData2, hoo2[3:17,] )
+hoo2 <- rbind( hoo2[1:4,], newData3, hoo2[5:18,] )
+hoo2 <- rbind( hoo2[1:5,], newData4, hoo2[6:19,] )
+hoo2 <- rbind( hoo2[1:8,], newData5, hoo2[9:20,] )
+hoo2 <- rbind( hoo2[1:10,], newData6, hoo2[11:21,] )
+hoo2 <- rbind( hoo2[1:12,], newData7, hoo2[13:22,] )
+hoo2 <- rbind( hoo2[1:13,], newData8, hoo2[14:23,] )
+hoo2 <- rbind( hoo2[1:16,], newData9, hoo2[17:24,] )
+hoo2 <- rbind( hoo2[1:22,], newData10, hoo2[23:25,] )
+hoo2$numAEM <- as.numeric(as.character(hoo2$numAEM))
+
+which(hoo2$numAEM==0) #2  3  5  6  9 11 13 14 17 23
+which(hoo2$numAEM==1) # 1  4  7  8 19 22 24 25 26
+which(hoo2$numAEM==2) #10 15 18 20 21
+which(hoo2$numAEM==3) #12 16
+which(hoo2$numAEM==4) #none
+which(hoo2$numAEM==5) #none
+which(hoo2$numAEM==6) #none
+
+hoo2$group <- 1
+hoo2$group[hoo2$numAEM > 0] <- 2
+which(hoo2$group==2) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+which(hoo2$group==1) #2  3  5  6  9 11 13 14 17 23
+length(which(hoo2$group==2)) #1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+length(which(hoo2$group==1))
+#0 vs not 0
+#b. X coordinate timecourse, preswitch
+coo <- subset(orig.sample4, switch==2)
+
+coo1 <- ddply(coo,.(subID,TIMECODE),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+coo1$group <- 1
+
+#1  4  7  8 10 12 15 16 18 19 20 21 22 24 25 26
+coo1$group[coo1$subID==1 | coo1$subID==4 |coo1$subID==7 |coo1$subID==8 |coo1$subID==10| coo1$subID==12|coo1$subID==15|coo1$subID==16|coo1$subID==18|coo1$subID==19|coo1$subID==20|coo1$subID==21|coo1$subID==22|coo1$subID==24|coo1$subID==25|coo1$subID==26] <- 2
+
+coo2 <- ddply(coo1,.(group,TIMECODE),summarise,pupilavg=mean(pupilsize,na.rm = TRUE),sepupil=sd(pupilsize, na.rm = TRUE)/sqrt(length(pupilsize))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(coo2,aes(x=TIMECODE,y=pupilavg,color=factor(group),fill=factor(group)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse for postswitch")+
+  labs(x = "Time", y = "Pupil change (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(-0.1,.15),breaks=seq(-0.1,.15,.02), expand = c(0, 0))+
+  scale_fill_brewer(palette="Greens",name="Number of correct AEMs made during preswitch",breaks=c("1","2"),labels=c("0", "1-3"))+
+  scale_color_brewer(palette="Greens")+
+  guides(color=FALSE)+theme(legend.position = "bottom")
+```
+
+pupil timecourse comparing preswitch and postswitch
+```{r}
+#boo is postswitch, #coo is preswitch
+boo2$switch <- 1
+coo2$switch <- 2
+doo <- rbind(boo2,coo2)
+
+split <- c(`1` = "number of correct preswitch AEMs: 0",`2` = "number of correct preswitch AEMs: 1-3")
+
+ggplot(doo,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse")+
+  labs(x = "Time", y = "Pupil change (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_fill_discrete(name="Sub-block",breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  guides(color=FALSE)+
+  facet_wrap(~group,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(-0.1,.1),breaks=seq(-0.1,.1,.02), expand = c(0, 0))
+
+```
+
+% looks to the side
+AEM vs no AEM trial
+and
+correct vs incorrect AEM trial
+```{r}
+e1 <- subset(aembreakdown, lookattarget < 9) #only care about 100ms timebins that has good data
+
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+#Calculate proplooking for each type of gaze (target, center, distractor)
+e1$center <- 0
+e1$side <- 0
+e1$type2 <- e1$type
+e1$type2[e1$type==2] <- 1 #1 = AEM, 3 = no AEM
+
+e1$side[e1$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+e1$center[e1$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+e1$side[e1$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
+
+e2 <- ddply(e1,.(subID,type2,timecode),summarise,SideProp=mean(side,na.rm = TRUE),CentProp=mean(center,na.rm = TRUE))
+
+#collapse across subjects
+e33 <- ddply(e2,.(type2,timecode),summarise,
+            looking=mean(SideProp,na.rm = TRUE),
+            selooking=sd(SideProp, na.rm = TRUE)/sqrt(length(SideProp)))
+
+ggplot(e33,aes(x=timecode,y=looking,color=factor(type2),fill=factor(type2)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("AEM vs no AEM trial")+
+  labs(x = "Time", y = "% of looking to side")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=looking-selooking,ymax=looking+selooking),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  guides(color=FALSE)+
+  theme(strip.text = element_text(size=14))+
+  scale_fill_brewer(palette="Set1",name="Trial type",breaks=c("1","3"),labels=c("AEM", "No AEM"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "bottom")
+
+#correct vs incorrect AEM
+e2 <- ddply(e1,.(subID,type,timecode),summarise,SideProp=mean(side,na.rm = TRUE),CentProp=mean(center,na.rm = TRUE))
+e2 <- subset(e2, type < 3)
+#collapse across subjects
+e33 <- ddply(e2,.(type,timecode),summarise,
+            looking=mean(SideProp,na.rm = TRUE),
+            selooking=sd(SideProp, na.rm = TRUE)/sqrt(length(SideProp)))
+
+ggplot(e33,aes(x=timecode,y=looking,color=factor(type),fill=factor(type)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("correct AEM vs incorrect AEM trial")+
+  labs(x = "Time", y = "% of looking to side")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=looking-selooking,ymax=looking+selooking),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  guides(color=FALSE)+
+  theme(strip.text = element_text(size=14))+
+  scale_fill_brewer(palette="Set1",name="Trial type",breaks=c("1","2"),labels=c("correct AEM", "incorrect AEM"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "bottom")
+```
+
+pupil time course facet_wrap by trial type (correct, incorrect, no AEM)
+color = preswitch and postswitch
+```{r}
+#facet wrap by trial type, color = pre or post switch
+
+#getting preswitch data ready
+y1 <- subset(orig.sample4, switch ==1)
+
+#separate for all 3 trial types
+y2 <- ddply(y1,.(subID,trialtype,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+y2 <- subset(y2, TIMECODE < 4001)
+y3 <- ddply(y2,.(trialtype,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+y3$switch <- 1
+
+#getting post switch data ready
+yoo <- subset(orig.sample4, switch ==2)
+
+#separate for all 3 trial types
+yoo1 <- ddply(yoo,.(subID,trialtype,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+yoo1 <- subset(yoo1, TIMECODE < 4001)
+yoo2 <- ddply(yoo1,.(trialtype,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+yoo2$switch <- 2
+vlines <- c(250,1750,2550)
+
+yfinal <- rbind(y3, yoo2)
+split <- c(`1` = "Correct AEM",`2` = "Incorrect AEM",`3` = "No AEM")
+
+ggplot(yfinal,aes(x=TIMECODE,y=pupilavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Accent",name="Sub-block",breaks=c("1","2"),labels=c("Preswitch", "Postswitch"))+
+  scale_color_brewer(palette="Accent")+
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels=percent,limits=c(-0.2,.2),breaks=seq(-0.2,.2,.05), expand = c(0, 0))+
+  facet_wrap(~trialtype,labeller = as_labeller(split),dir="v")
+```
+
+pupil time course by trial type (correct, incorrect, no AEM)
+```{r}
+#separate for all 3 trial types
+boo1 <- ddply(orig.sample4,.(subID,trialtype,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(trialtype,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype),fill=factor(trialtype)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","2","3"),labels=c("Correct AEM", "Incorrect AEM","No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels=percent,limits=c(-0.2,.2),breaks=seq(-0.2,.2,.05), expand = c(0, 0))
+
+#group correct and incorrect together
+orig.sample4$trialtype2 <- orig.sample4$trialtype
+orig.sample4$trialtype2[orig.sample4$trialtype==2] <- 1
+
+boo1 <- ddply(orig.sample4,.(subID,trialtype2,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(trialtype2,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype2),fill=factor(trialtype2)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","3"),labels=c("AEM", "No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels=percent,limits=c(-0.1,.1),breaks=seq(-0.1,.1,.02), expand = c(0, 0))
+
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+Correlation of Percentage of AEM in pre and percentage in post WORK ON THIS
+```{r}
+#Correlation of percentage of correct preswitch AEM and correct postswitch AEM
+v1 <- ddply(aembreakdown,.(subID,type,switch),summarise,aem=length(unique(trialnum,na.rm = TRUE)))
+v1$percentaem <- 0
+  
+subs <- unique(v1$subID)
+for (j in 1:length(subs)) {
+ t1 <- sum(v1$aem[v1$subID==subs[j] & v1$switch==1])
+ t2 <- sum(v1$aem[v1$subID==subs[j] & v1$switch==2])
+ v1$percentaem[v1$subID==subs[j] & v1$switch==1] <- v1$aem[v1$subID==subs[j] & v1$switch==1] / t1
+ v1$percentaem[v1$subID==subs[j] & v1$switch==2] <- v1$aem[v1$subID==subs[j] & v1$switch==2] / t2
+}
+
+#remove NAN or replace it with 0?
+v3 <- subset(v1, switch==1 & type==1) #only keep correct AEM
+v4 <- subset(v1, switch==2 & type==1) #only keep correct AEM
+
+newData1 <- data.frame(subID = "2",type = "1", switch ="1", aem = "0", percentaem = "0")
+newData2 <- data.frame(subID = "5", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData3 <- data.frame(subID = "7", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData4 <- data.frame(subID = "8", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData5 <- data.frame(subID = "11", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData6 <- data.frame(subID = "13", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData7 <- data.frame(subID = "15", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData8 <- data.frame(subID = "17", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData9 <- data.frame(subID = "21", type = "1", switch ="1", aem = "0", percentaem = "0")
+newData10 <- data.frame(subID = "31",type = "1", switch ="1", aem = "0", percentaem = "0")
+
+v3 <- rbind( v3[1,], newData1, v3[2:16,] )
+v3 <- rbind( v3[1:2,], newData2, v3[3:17,] )
+v3 <- rbind( v3[1:4,], newData3, v3[5:18,] )
+v3 <- rbind( v3[1:5,], newData4, v3[6:19,] )
+v3 <- rbind( v3[1:8,], newData5, v3[9:20,] )
+v3 <- rbind( v3[1:10,], newData6, v3[11:21,] )
+v3 <- rbind( v3[1:12,], newData7, v3[13:22,] )
+v3 <- rbind( v3[1:13,], newData8, v3[14:23,] )
+v3 <- rbind( v3[1:16,], newData9, v3[17:24,] )
+v3 <- rbind( v3[1:22,], newData10, v3[23:25,] )
+v3$percentaem <- as.numeric(as.character(v3$percentaem))
+
+newData1 <- data.frame(subID = "1", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData2 <- data.frame(subID = "2", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData3 <- data.frame(subID = "6", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData4 <- data.frame(subID = "7", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData5 <- data.frame(subID = "8", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData6 <- data.frame(subID = "9", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData7 <- data.frame(subID = "10", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData8 <- data.frame(subID = "12", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData9 <- data.frame(subID = "14", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData10 <- data.frame(subID = "17", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData11 <- data.frame(subID = "21", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData12 <- data.frame(subID = "25", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData13 <- data.frame(subID = "26", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData14 <- data.frame(subID = "28", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData15 <- data.frame(subID = "31", type = "1", switch ="2", aem = "0", percentaem = "0")
+newData16 <- data.frame(subID = "33", type = "1", switch ="2", aem = "0", percentaem = "0")
+
+newData1$subID <- as.numeric(as.character(newData1$subID))
+newData1$type <- as.numeric(as.character(newData1$type))
+newData1$switch <- as.numeric(as.character(newData1$switch))
+newData1$aem <- as.numeric(as.character(newData1$aem))
+newData1$percentaem <- as.numeric(as.character(newData1$percentaem))
+v4 <- rbind(newData1, v4)
+v4 <- rbind( v4[1,], newData2, v4[2:11,] )
+v4 <- rbind( v4[1:3,], newData3, v4[4:12,] )
+v4 <- rbind( v4[1:4,], newData4, v4[5:13,] )
+v4 <- rbind( v4[1:5,], newData5, v4[6:14,] )
+v4 <- rbind( v4[1:6,], newData6, v4[7:15,] )
+v4 <- rbind( v4[1:7,], newData7, v4[8:16,] )
+v4 <- rbind( v4[1:9,], newData8, v4[10:17,] )
+v4 <- rbind( v4[1:11,], newData9, v4[12:18,] )
+v4 <- rbind( v4[1:13,], newData10, v4[14:19,] )
+v4 <- rbind( v4[1:16,], newData11, v4[17:20,] )
+v4 <- rbind( v4[1:19,], newData12, v4[20:21,] )
+v4 <- rbind( v4[1:20,], newData13, v4[21:22,] )
+v4 <- rbind( v4[1:21,], newData14, v4[22:23,] )
+v4 <- rbind( v4[1:22,], newData15, v4[23:24,] )
+v4 <- rbind( v4[1:24,], newData16, v4[25:25,] )
+v4$aem <- as.numeric(as.character(v4$aem))
+v4$percentaem <- as.numeric(as.character(v4$percentaem))
+
+v5 <- data.frame(subID=numeric(26),percentpreswitch=numeric(26),percentpostswitch=numeric(26))
+v5$subID <- v4$subID
+v5$percentpreswitch <- v3$percentaem
+v5$percentpostswitch <- v4$percentaem
+
+ggplot(v5,aes(x=percentpreswitch,y=percentpostswitch))+
+  geom_point()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Correlation of percentage of correct preswitch AEM and correct postswitch AEM")+
+  labs(x = "percentage of correct preswitch AEM", y = "percentage of correct postswitch AEM")+
+  theme(plot.title = element_text(face="bold", size=16, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(labels=percent,limits=c(0,.4),breaks=seq(0,.4,.05))+
+  scale_x_continuous(labels=percent,limits=c(0,.4),breaks=seq(0,.4,.05))+
+  stat_smooth(method=lm)
+
+```
+CONCLUSION: We will include block 3
+
+play around with exclusion criteria, see how many babies we would exclude
+1. each subject has to contribute at least one trial for preswitch and postswitch
+2. each subject has to contribute at least one trial for preswitch and postswitch, for every block
+3. each subject has to contribute at least one trial for preswitch and postswitch, for 2/3 blocks
+
+```{r}
+#criteria 1. each subject has to contribute at least one trial for preswitch and postswitch
+#criteria 2. each subject has to contribute at least one trial for preswitch and postswitch, for every block
+#criteria 3. each subject has to contribute at least one trial for preswitch and postswitch, for 2/3 blocks
+
+#counting number of babies for criteria 1
+cr1 <- ddply(orig.sample3,.(subID,switch),summarise,trials=length(unique(TRIAL_INDEX)))
+#fail: 22 (1 sub exclude)
+
+#counting number of babies for criteria 2
+cr2 <- ddply(orig.sample3,.(subID,switch,block),summarise,trials=length(unique(TRIAL_INDEX)))
+#fail: 3, 4, 6, 15, 16, 17, 19, 22, 26, 27, 29, 30 (12 subs excluded)
+
+#counting number of babies for criteria 3
+cr3 <- ddply(orig.sample3,.(subID,switch,block),summarise,trials=length(unique(TRIAL_INDEX)))
+#fail: 3, 4, 16, 19, 22, 27, 29, 30 (8 subs excluded)
+
+cr4 <- data.frame(critera = numeric(6),includeexclude = numeric(6), numbabies = numeric(6))
+cr4$critera <- rep(1:3, each=2)
+cr4$critera2[cr4$critera==1] <- "contribute at least one trial for 2/6 subblock (1 for preswitch and 1 for postswitch)"
+cr4$critera2[cr4$critera==2] <- "contribute at least one trial for 6/6 subblock"
+cr4$critera2[cr4$critera==3] <- "contribute at least one trial for 4/6 subblock (2 for preswitch and 2 for postswitch)"
+cr4$includeexclude <- rep(1:2) #1=include, 2=exclude
+cr4$numbabies[1] <- 33
+cr4$numbabies[2] <- 1
+cr4$numbabies[3] <- 22
+cr4$numbabies[4] <- 12
+cr4$numbabies[5] <- 26
+cr4$numbabies[6] <- 8
+
+ggplot(cr4,aes(x=factor(critera2),y=numbabies,fill=factor(includeexclude),color=factor(includeexclude)))+
+  geom_bar(stat="identity")+
+  ggtitle("Exclusion criteria")+
+  labs(x = "Criteria", y = "Number of babies")+
+  theme(plot.title = element_text(face="bold", size=14, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=16))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  scale_fill_brewer(palette="PuRd",name="Type",breaks=c("1","2"),labels=c("include", "exclude"))+
+  scale_color_brewer(palette="PuRd")+
+  scale_y_continuous(limits=c(0,34),breaks=seq(0,34,2))+
+  guides(color=FALSE)+
+  scale_x_discrete(labels = wrap_format(40))+
+  theme(legend.position = "bottom")
+```
