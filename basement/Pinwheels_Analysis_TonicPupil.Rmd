@@ -1,0 +1,88 @@
+---
+title: "Untitled"
+author: "Felicia Zhang"
+date: '2018-01-04'
+output: html_document
+---
+
+Only using trials 1-4 of each subblock
+Baseline = 0-1500ms
+```{r setup, include=FALSE}
+library(ggplot2) 
+library(zoo)
+library(reshape)
+library(plyr)
+library(scales) 
+library(data.table)
+library(signal)
+library(matrixStats)
+library(lme4)
+library(arm)
+library(wesanderson)
+
+#load preprocessed data
+#Oct21 has PUPIL_CORRECTED_2 calculated using 0-1500ms
+orig.sample <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_AllSamples_Nov28.csv") #Nov28 has trackloss % for all trials
+orig.sample2 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_RemovedOutliers_Nov28.csv") #Nov28 has bad trials removed
+orig.sample$X <- NULL
+orig.sample2$X <- NULL
+orig.sample$X.1 <- NULL
+orig.sample2$X.1 <- NULL
+#breakdown of trial:
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+# = 3550 ms total
+
+#leftright = #1,3,5 = L, 2,4,6 = R
+#switch = 1 preswitch, 2 = postswitch
+#sublocks = 1:6
+#blocks = 1:3
+#lookattarget = 0 = distractor, 1 = target, 5 = center,
+#PUPIL_CORRECTED_2 calculated using 0-1500ms
+#PUPIL_CORRECTED calculated using 0-1750ms
+
+#REMOVE TRIALS 5-8 FOR EACH SUBBLOCK
+orig.sample$trialnum <- 0
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 1 | orig.sample$TRIAL_INDEX == 9 | orig.sample$TRIAL_INDEX == 17 | orig.sample$TRIAL_INDEX == 25 | orig.sample$TRIAL_INDEX == 33 | orig.sample$TRIAL_INDEX == 41] <- 1
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 2 | orig.sample$TRIAL_INDEX == 10 | orig.sample$TRIAL_INDEX == 18 | orig.sample$TRIAL_INDEX == 26 | orig.sample$TRIAL_INDEX == 34 | orig.sample$TRIAL_INDEX == 42] <- 2
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 3 | orig.sample$TRIAL_INDEX == 11 | orig.sample$TRIAL_INDEX == 19 | orig.sample$TRIAL_INDEX == 27 | orig.sample$TRIAL_INDEX == 35 | orig.sample$TRIAL_INDEX == 43] <- 3
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 4 | orig.sample$TRIAL_INDEX == 12 | orig.sample$TRIAL_INDEX == 20 | orig.sample$TRIAL_INDEX == 28 | orig.sample$TRIAL_INDEX == 36 | orig.sample$TRIAL_INDEX == 44] <- 4
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 5 | orig.sample$TRIAL_INDEX == 13 | orig.sample$TRIAL_INDEX == 21 | orig.sample$TRIAL_INDEX == 29 | orig.sample$TRIAL_INDEX == 37 | orig.sample$TRIAL_INDEX == 45] <- 5
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 6 | orig.sample$TRIAL_INDEX == 14 | orig.sample$TRIAL_INDEX == 22 | orig.sample$TRIAL_INDEX == 30 | orig.sample$TRIAL_INDEX == 38 | orig.sample$TRIAL_INDEX == 46] <- 6
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 7 | orig.sample$TRIAL_INDEX == 15 | orig.sample$TRIAL_INDEX == 23 | orig.sample$TRIAL_INDEX == 31 | orig.sample$TRIAL_INDEX == 39 | orig.sample$TRIAL_INDEX == 47] <- 7
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 8 | orig.sample$TRIAL_INDEX == 16 | orig.sample$TRIAL_INDEX == 24 | orig.sample$TRIAL_INDEX == 32 | orig.sample$TRIAL_INDEX == 40 | orig.sample$TRIAL_INDEX == 48] <- 8
+
+orig.sample2$trialnum <- 0
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 1 | orig.sample2$TRIAL_INDEX == 9 | orig.sample2$TRIAL_INDEX == 17 | orig.sample2$TRIAL_INDEX == 25 | orig.sample2$TRIAL_INDEX == 33 | orig.sample2$TRIAL_INDEX == 41] <- 1
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 2 | orig.sample2$TRIAL_INDEX == 10 | orig.sample2$TRIAL_INDEX == 18 | orig.sample2$TRIAL_INDEX == 26 | orig.sample2$TRIAL_INDEX == 34 | orig.sample2$TRIAL_INDEX == 42] <- 2
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 3 | orig.sample2$TRIAL_INDEX == 11 | orig.sample2$TRIAL_INDEX == 19 | orig.sample2$TRIAL_INDEX == 27 | orig.sample2$TRIAL_INDEX == 35 | orig.sample2$TRIAL_INDEX == 43] <- 3
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 4 | orig.sample2$TRIAL_INDEX == 12 | orig.sample2$TRIAL_INDEX == 20 | orig.sample2$TRIAL_INDEX == 28 | orig.sample2$TRIAL_INDEX == 36 | orig.sample2$TRIAL_INDEX == 44] <- 4
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 5 | orig.sample2$TRIAL_INDEX == 13 | orig.sample2$TRIAL_INDEX == 21 | orig.sample2$TRIAL_INDEX == 29 | orig.sample2$TRIAL_INDEX == 37 | orig.sample2$TRIAL_INDEX == 45] <- 5
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 6 | orig.sample2$TRIAL_INDEX == 14 | orig.sample2$TRIAL_INDEX == 22 | orig.sample2$TRIAL_INDEX == 30 | orig.sample2$TRIAL_INDEX == 38 | orig.sample2$TRIAL_INDEX == 46] <- 6
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 7 | orig.sample2$TRIAL_INDEX == 15 | orig.sample2$TRIAL_INDEX == 23 | orig.sample2$TRIAL_INDEX == 31 | orig.sample2$TRIAL_INDEX == 39 | orig.sample2$TRIAL_INDEX == 47] <- 7
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 8 | orig.sample2$TRIAL_INDEX == 16 | orig.sample2$TRIAL_INDEX == 24 | orig.sample2$TRIAL_INDEX == 32 | orig.sample2$TRIAL_INDEX == 40 | orig.sample2$TRIAL_INDEX == 48] <- 8
+
+orig.sample3 <- subset(orig.sample, trialnum < 5)
+orig.sample4 <- subset(orig.sample2, trialnum < 5)
+
+#orig.sample = all trials
+#orig.sample2 = trials with more than 50% looking
+#orig.sample3 = orig.sample but only trials 1-4 of each subblock
+#orig.sample4 = orig.sample2 but only trials 1-4 of each subblock
+#orig.sample5 = orig.sample3 but without block 3
+#orig.sample6 = orig.sample4 but without block 3
+#orig.sample7 = orig.sample5 but without trial 1 of each sublock
+#orig.sample8 = orig.sample6 but without trial 1 of each sublock
+
+#also remove block 3
+orig.sample5 <- subset(orig.sample3, block < 3)
+orig.sample6 <- subset(orig.sample4, block < 3)
+#also remove trial 1 of every sublock
+orig.sample7 <- subset(orig.sample5, trialnum > 1)
+orig.sample8 <- subset(orig.sample6, trialnum > 1)
+
+```
+
+

@@ -1,0 +1,1166 @@
+---
+title: "Jan 4 2018 pupil"
+author: "Felicia Zhang"
+date: '2018-01-06'
+output: html_document
+---
+goal: how do we control for gaze location and pupil size? is pupil differnece driven by differences in looking?
+
+1. timecourse graphs:
+a. Y coordinate timecourse, pre and post
+b. X coordinate timecourse, pre and post
+
+2. slide 30
+facet by location, have colors for preswitch and post switch
+
+3. summary overall
+quantify correct AEM, all AEM for preswitch and post switch 
+breaking it down for block 1 and block 2
+
+4. slide 44
+a. X axis = time, Y = x coordinate, lines = number of correct AEM preswitch
+make sure to know how many babies for each line
+b. do same for postswitch
+
+5. quantify correct AEM, overall AEM for preswitch and post switch 
+breaking it down for block 1 and block 2
+
+```{r setup, include=FALSE}
+
+#load preprocessed data
+#Oct21 has PUPIL_CORRECTED_2 calculated using 0-1500ms
+orig.sample <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_AllSamples_Nov28.csv") #Nov28 has trackloss % for all trials
+orig.sample2 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_RemovedOutliers_Nov28.csv")  #Nov28 has bad trials removed
+orig.sample$X <- NULL
+orig.sample2$X <- NULL
+orig.sample$X.1 <- NULL
+orig.sample2$X.1 <- NULL
+
+#REMOVE TRIALS 5-8 FOR EACH SUBBLOCK
+orig.sample$trialnum <- 0
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 1 | orig.sample$TRIAL_INDEX == 9 | orig.sample$TRIAL_INDEX == 17 | orig.sample$TRIAL_INDEX == 25 | orig.sample$TRIAL_INDEX == 33 | orig.sample$TRIAL_INDEX == 41] <- 1
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 2 | orig.sample$TRIAL_INDEX == 10 | orig.sample$TRIAL_INDEX == 18 | orig.sample$TRIAL_INDEX == 26 | orig.sample$TRIAL_INDEX == 34 | orig.sample$TRIAL_INDEX == 42] <- 2
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 3 | orig.sample$TRIAL_INDEX == 11 | orig.sample$TRIAL_INDEX == 19 | orig.sample$TRIAL_INDEX == 27 | orig.sample$TRIAL_INDEX == 35 | orig.sample$TRIAL_INDEX == 43] <- 3
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 4 | orig.sample$TRIAL_INDEX == 12 | orig.sample$TRIAL_INDEX == 20 | orig.sample$TRIAL_INDEX == 28 | orig.sample$TRIAL_INDEX == 36 | orig.sample$TRIAL_INDEX == 44] <- 4
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 5 | orig.sample$TRIAL_INDEX == 13 | orig.sample$TRIAL_INDEX == 21 | orig.sample$TRIAL_INDEX == 29 | orig.sample$TRIAL_INDEX == 37 | orig.sample$TRIAL_INDEX == 45] <- 5
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 6 | orig.sample$TRIAL_INDEX == 14 | orig.sample$TRIAL_INDEX == 22 | orig.sample$TRIAL_INDEX == 30 | orig.sample$TRIAL_INDEX == 38 | orig.sample$TRIAL_INDEX == 46] <- 6
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 7 | orig.sample$TRIAL_INDEX == 15 | orig.sample$TRIAL_INDEX == 23 | orig.sample$TRIAL_INDEX == 31 | orig.sample$TRIAL_INDEX == 39 | orig.sample$TRIAL_INDEX == 47] <- 7
+orig.sample$trialnum[orig.sample$TRIAL_INDEX == 8 | orig.sample$TRIAL_INDEX == 16 | orig.sample$TRIAL_INDEX == 24 | orig.sample$TRIAL_INDEX == 32 | orig.sample$TRIAL_INDEX == 40 | orig.sample$TRIAL_INDEX == 48] <- 8
+
+orig.sample2$trialnum <- 0
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 1 | orig.sample2$TRIAL_INDEX == 9 | orig.sample2$TRIAL_INDEX == 17 | orig.sample2$TRIAL_INDEX == 25 | orig.sample2$TRIAL_INDEX == 33 | orig.sample2$TRIAL_INDEX == 41] <- 1
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 2 | orig.sample2$TRIAL_INDEX == 10 | orig.sample2$TRIAL_INDEX == 18 | orig.sample2$TRIAL_INDEX == 26 | orig.sample2$TRIAL_INDEX == 34 | orig.sample2$TRIAL_INDEX == 42] <- 2
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 3 | orig.sample2$TRIAL_INDEX == 11 | orig.sample2$TRIAL_INDEX == 19 | orig.sample2$TRIAL_INDEX == 27 | orig.sample2$TRIAL_INDEX == 35 | orig.sample2$TRIAL_INDEX == 43] <- 3
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 4 | orig.sample2$TRIAL_INDEX == 12 | orig.sample2$TRIAL_INDEX == 20 | orig.sample2$TRIAL_INDEX == 28 | orig.sample2$TRIAL_INDEX == 36 | orig.sample2$TRIAL_INDEX == 44] <- 4
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 5 | orig.sample2$TRIAL_INDEX == 13 | orig.sample2$TRIAL_INDEX == 21 | orig.sample2$TRIAL_INDEX == 29 | orig.sample2$TRIAL_INDEX == 37 | orig.sample2$TRIAL_INDEX == 45] <- 5
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 6 | orig.sample2$TRIAL_INDEX == 14 | orig.sample2$TRIAL_INDEX == 22 | orig.sample2$TRIAL_INDEX == 30 | orig.sample2$TRIAL_INDEX == 38 | orig.sample2$TRIAL_INDEX == 46] <- 6
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 7 | orig.sample2$TRIAL_INDEX == 15 | orig.sample2$TRIAL_INDEX == 23 | orig.sample2$TRIAL_INDEX == 31 | orig.sample2$TRIAL_INDEX == 39 | orig.sample2$TRIAL_INDEX == 47] <- 7
+orig.sample2$trialnum[orig.sample2$TRIAL_INDEX == 8 | orig.sample2$TRIAL_INDEX == 16 | orig.sample2$TRIAL_INDEX == 24 | orig.sample2$TRIAL_INDEX == 32 | orig.sample2$TRIAL_INDEX == 40 | orig.sample2$TRIAL_INDEX == 48] <- 8
+
+orig.sample3 <- subset(orig.sample, trialnum < 5)
+orig.sample4 <- subset(orig.sample2, trialnum < 5)
+
+#orig.sample = all trials
+#orig.sample2 = trials with more than 50% looking
+#orig.sample3 = orig.sample but only trials 1-4 of each subblock
+#orig.sample4 = orig.sample2 but only trials 1-4 of each subblock
+#orig.sample5 = orig.sample3 but without block 3
+#orig.sample6 = orig.sample4 but without block 3
+#orig.sample7 = orig.sample5 but without trial 1 of each sublock
+#orig.sample8 = orig.sample6 but without trial 1 of each sublock
+
+#also remove block 3
+orig.sample5 <- subset(orig.sample3, block < 3)
+orig.sample6 <- subset(orig.sample4, block < 3)
+#also remove trial 1 of every sublock
+orig.sample7 <- subset(orig.sample5, trialnum > 1)
+orig.sample8 <- subset(orig.sample6, trialnum > 1)
+
+#bar graph data breakdown
+#0 = distractor, 1 = target, 5 = center
+boo4 <- data.frame(look=numeric(3), percentlook=numeric(3))
+boo4$look[1] <- 0
+boo4$look[2] <- 1
+boo4$look[3] <- 5
+boo4$percentlook[1] <- length(which(orig.sample8$lookattarget==0))/length(orig.sample8$RECORDING_SESSION_LABEL)
+boo4$percentlook[2] <- length(which(orig.sample8$lookattarget==1))/length(orig.sample8$RECORDING_SESSION_LABEL)
+boo4$percentlook[3] <- length(which(orig.sample8$lookattarget==5))/length(orig.sample8$RECORDING_SESSION_LABEL)
+
+ggplot(boo4,aes(x=factor(look),y=percentlook,fill=factor(look)))+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity")+ggtitle("Data breakdown")+
+  labs(x = "Looking at", y = "Percent of data")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_x_discrete(breaks=c("0", "1","5"),labels=c("Distractor", "Target","Center"))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+guides(fill=FALSE)
+
+#1. timecourse graphs:
+# screen res is 1024 x 1280 (Y X)
+#a. Y coordinate timecourse, pre and post
+#line graph
+boo1 <- ddply(orig.sample8,.(subID,switch,TIMECODE),summarise,ycoordinate=mean(RIGHT_GAZE_Y,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE),summarise,Yavg=mean(ycoordinate,na.rm = TRUE),seY=sd(ycoordinate, na.rm = TRUE)/sqrt(length(ycoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Yavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of Y coordinate")+
+  labs(x = "Time", y = "Y coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Yavg-seY,ymax=Yavg+seY),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1024),breaks=seq(0,1024,200), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)
+
+#b. X coordinate timecourse, pre and post
+boo1 <- ddply(orig.sample8,.(subID,switch,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)
+
+#remove center look #0 = distractor, 1 = target, 5 = center
+#width is 1280
+#left targetx1 <- 426
+#right targetx2 <- 854
+boo3 <- subset(orig.sample8, lookattarget < 5) 
+boo1 <- ddply(boo3,.(subID,switch,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+vlinesh <- c(426,854)
+  
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate (w/o center looks)")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+geom_hline(yintercept = vlinesh,linetype="dashed")+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)
+
+
+boo1 <- ddply(orig.sample8,.(subID,switch,TIMECODE,block),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE,block),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block)
+
+boo3 <- subset(orig.sample8, lookattarget < 5) 
+boo1 <- ddply(boo3,.(subID,switch,TIMECODE,block),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo2 <- ddply(boo1,.(switch,TIMECODE,block),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+vlinesh <- c(426,854)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate (w/o center looks)")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_discrete(name="Switch",breaks=c("1", "2"),labels=c("Pre-Switch", "Post-Switch"))+guides(color=FALSE)+
+  facet_wrap(~block)
+
+#2. new version of slide 30
+#facet by location, have colors for preswitch and post switch
+poo <- orig.sample8
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+#total time = 3550ms (round to 3500ms)
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),timecode=numeric(),lookingattarget=numeric())
+subs <- unique(poo$subID)
+time <- seq(100,4000, by=100) #the time bins we are trying to create (0-4000ms) doing 4000ms bc s
+
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+  #gets all sample for 1 trial  
+  woo <- subset(poo, subID==subs[j] & TRIAL_INDEX == trials[i])
+  c <- woo$block[1]
+  for (k in 1:length(time)){
+    #for every 25 sample/100 ms, get lookattarget column
+    if (k==1) {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1] #gets 0-100ms
+    d <- unique(target)
+    dd <- which(d==1)
+    } else {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1 & woo$TIMECODE > time[k-1]-1]
+    d <- unique(target)
+    dd <- which(d==1)
+    }
+    #see if entire chunk is looking at target
+    if (length(target)==0) { #no samples collected during this time
+    aa <- c(subs[j],trials[i],c,time[k],99)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==1) { #looking at target entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==0) { #looking at distractor entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==5) { #looking at center entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d) > 1 & length(dd) < 1) { #not looking at same location and not looking at target (looking at distractor and center)
+    aa <- c(subs[j],trials[i],c,time[k],9)   
+    moo <- rbind(moo,aa) 
+    warnings()
+    } else { #not looking at same location and but looking at target sometimes
+    #calculate proportion looking  
+    b <- length(which(target==1)) #samples where subs are looking at target
+    bb <- length(which(target==1))/length(target) #looking at target/25
+    aa <- c(subs[j],trials[i],c,time[k],bb) 
+    moo <- rbind(moo,aa)
+    warnings()
+    }}}}
+
+names(moo)[1] <- "subID"
+names(moo)[2] <- "trialnum"
+names(moo)[3] <- "block"
+names(moo)[4] <- "timecode"
+names(moo)[5] <- "lookattarget"
+#0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
+
+poo.bin <- subset(moo, lookattarget < 9) #removing bins with no good samples, and looking at distractor and center within 100ms
+poo.bin$switch <- 0
+poo.bin$switch[poo.bin$trialnum < 9] <- 1
+poo.bin$switch[poo.bin$trialnum > 8 & poo.bin$trialnum < 17] <- 2
+poo.bin$switch[poo.bin$trialnum > 16 & poo.bin$trialnum < 25] <- 1
+poo.bin$switch[poo.bin$trialnum > 24 & poo.bin$trialnum < 33] <- 2
+poo.bin$switch[poo.bin$trialnum > 32 & poo.bin$trialnum < 41] <- 1
+poo.bin$switch[poo.bin$trialnum > 40] <- 2
+
+#Calculate proplooking for each type of gaze (target, center, distractor)
+poo.bin$center <- 0
+poo.bin$distractor <- 0
+poo.bin$target <- 0  
+
+poo.bin$target[poo.bin$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+poo.bin$target[poo.bin$lookattarget > 0 & poo.bin$lookattarget < 1] <- 1 #if lookattarget is decimal, then also looking at target
+poo.bin$center[poo.bin$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+poo.bin$distractor[poo.bin$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
+
+poo.bin$TargProp <- poo.bin$target / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$CentProp <- poo.bin$center / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+poo.bin$DistProp <- poo.bin$distractor / (poo.bin$target+poo.bin$center+poo.bin$distractor)
+
+#PLOT, % look to target location
+#now splitting it into 2 graphs, preswitch and post switch
+goo <- ddply(poo.bin,.(subID, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanCenterSs=mean(CentProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE))
+gooA <- ddply(goo,.(timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanCenter=mean(meanCenterSs,na.rm = TRUE),seCenter=sd(meanCenterSs, na.rm = TRUE)/sqrt(length(meanCenterSs)),meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects  
+
+goo.T <- gooA[,1:4]
+goo.C <- gooA[,c(1,2,5,6)]
+goo.D <- gooA[,c(1,2,7,8)]
+goo.T$location <- 1
+goo.C$location <- 5
+goo.D$location <- 0
+names(goo.T)[3] <- "meanLook"
+names(goo.T)[4] <- "SELook"
+names(goo.C)[3] <- "meanLook"
+names(goo.C)[4] <- "SELook"
+names(goo.D)[3] <- "meanLook"
+names(goo.D)[4] <- "SELook"
+
+goo2 <- rbind(goo.T, goo.C, goo.D)
+
+split <- c(`0` = "Distractor",`1` = "Target",`5` = "Center")
+vlines <- c(250,1750,2550)
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Location",breaks=c("1","2"),labels=c("Preswitch", "Postswitch"))+guides(color=FALSE)+facet_wrap(~location, dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))
+
+#not breaking by pre-switch and post-switch
+goo <- ddply(poo.bin,.(subID, timecode),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanCenterSs=mean(CentProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE))
+gooA <- ddply(goo,.(timecode),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanCenter=mean(meanCenterSs,na.rm = TRUE),seCenter=sd(meanCenterSs, na.rm = TRUE)/sqrt(length(meanCenterSs)),meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects 
+
+goo.T <- gooA[,1:3]
+goo.C <- gooA[,c(1,4,5)]
+goo.D <- gooA[,c(1,6,7)]
+goo.T$location <- 1
+goo.C$location <- 5
+goo.D$location <- 0
+names(goo.T)[2] <- "meanLook"
+names(goo.T)[3] <- "SELook"
+names(goo.C)[2] <- "meanLook"
+names(goo.C)[3] <- "SELook"
+names(goo.D)[2] <- "meanLook"
+names(goo.D)[3] <- "SELook"
+
+goo2 <- rbind(goo.T, goo.C, goo.D)
+
+ggplot(goo2,aes(x=timecode,y=meanLook))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  facet_wrap(~location, dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))
+
+#take out center looks (just looking at T/T+D for pre-switch vs. post-switch blocks)
+poo.bin2 <- subset(poo.bin, center==0) #removing center looks
+
+poo.bin2$TargProp <- poo.bin2$target / (poo.bin2$target+poo.bin2$distractor)
+poo.bin2$DistProp <- poo.bin2$distractor / (poo.bin2$target+poo.bin2$distractor)
+
+goo <- ddply(poo.bin2,.(subID, block, timecode,switch),summarise,meanTargetSs=mean(TargProp,na.rm = TRUE),meanDistractorSs=mean(DistProp,na.rm = TRUE)) #collpase across trials
+goo$add <- goo$meanTargetSs + goo$meanDistractorSs
+
+gooA <- ddply(goo,.(timecode,switch),summarise,meanTarget=mean(meanTargetSs,na.rm = TRUE),seTarget=sd(meanTargetSs, na.rm = TRUE)/sqrt(length(meanTargetSs)), meanDistractor=mean(meanDistractorSs,na.rm = TRUE),seDistractor=sd(meanDistractorSs, na.rm = TRUE)/sqrt(length(meanDistractorSs))) #collapse across subjects  
+gooA$add <- gooA$meanTarget + gooA$meanDistractor
+
+goo.T <- gooA[,1:4]
+goo.D <- gooA[,c(1,2,5,6)]
+goo.T$location <- 1
+goo.D$location <- 0
+names(goo.T)[3] <- "meanLook"
+names(goo.T)[4] <- "SELook"
+names(goo.D)[3] <- "meanLook"
+names(goo.D)[4] <- "SELook"
+
+goo2 <- rbind(goo.T, goo.D)
+
+split <- c(`0` = "Distractor",`1` = "Target")
+vlines <- c(250,1750,2550)
+ggplot(goo2,aes(x=timecode,y=meanLook,color=factor(switch),fill=factor(switch)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Where are babies looking?")+
+  labs(x = "Time", y = "Percent Looking")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=meanLook-SELook,ymax=meanLook+SELook),alpha=0.4)+
+  ylim(0,1)+geom_vline(xintercept = vlines)+scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels=percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  scale_fill_discrete(name="Switch",breaks=c("1","2"),labels=c("PreSwitch", "PostSwitch"))+guides(color=FALSE)+facet_wrap(~location,labeller = as_labeller(split),dir="v")+
+  theme(strip.text = element_text(size=14))
+
+#3. summary overall of AEM
+poo <- orig.sample8
+
+#250ms blank
+#1500ms circle
+#800ms blank
+#1000ms target
+#total time = 3550ms (round to 3500ms)
+
+#1. Binning every 100ms, to make sure that it's actually a fixation for lookstotarget
+moo <- data.frame(subID=numeric(),trialnum=numeric(),timecode=numeric(),lookingattarget=numeric())
+subs <- unique(poo$subID)
+time <- seq(100,4000, by=100) #the time bins we are trying to create (0-4000ms) doing 4000ms bc s
+
+for (j in 1:length(subs)) {
+  #gets every trial for 1 subject
+  trials <- unique(poo$TRIAL_INDEX[poo$subID==subs[j]])
+  print(j)
+  for (i in 1:length(trials)) {
+  #gets all sample for 1 trial  
+  woo <- subset(poo, subID==subs[j] & TRIAL_INDEX == trials[i])
+  c <- woo$block[1]
+  for (k in 1:length(time)){
+    #for every 25 sample/100 ms, get lookattarget column
+    if (k==1) {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1] #gets 0-100ms
+    d <- unique(target)
+    dd <- which(d==1)
+    } else {
+    target <- woo$lookattarget[woo$TIMECODE < time[k]+1 & woo$TIMECODE > time[k-1]-1]
+    d <- unique(target)
+    dd <- which(d==1)
+    }
+    #see if entire chunk is looking at target
+    if (length(target)==0) { #no samples collected during this time
+    aa <- c(subs[j],trials[i],c,time[k],99)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==1) { #looking at target entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==0) { #looking at distractor entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d)==1 & d==5) { #looking at center entire time
+    aa <- c(subs[j],trials[i],c,time[k],d)   
+    moo <- rbind(moo,aa)
+    warnings()
+    } else if (length(d) > 1 & length(dd) < 1) { #not looking at same location and not looking at target (looking at distractor and center)
+    aa <- c(subs[j],trials[i],c,time[k],9)   
+    moo <- rbind(moo,aa) 
+    warnings()
+    } else { #not looking at same location and but looking at target sometimes
+    bb <- 999 
+    aa <- c(subs[j],trials[i],c,time[k],bb) 
+    moo <- rbind(moo,aa)
+    warnings()
+    }}}}
+
+names(moo)[1] <- "subID"
+names(moo)[2] <- "trialnum"
+names(moo)[3] <- "block"
+names(moo)[4] <- "timecode"
+names(moo)[5] <- "lookattarget"
+moo$switch <- 1
+moo$switch[moo$trialnum==10] <-2
+moo$switch[moo$trialnum==11] <-2
+moo$switch[moo$trialnum==12] <-2
+moo$switch[moo$trialnum==26] <-2
+moo$switch[moo$trialnum==27] <-2
+moo$switch[moo$trialnum==28] <-2
+
+#0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
+
+#all AEM for preswitch and post switch, stack bar plot to show correct and incorrect (distractor)
+#0 = distractor, 1 = target, 5 = center,
+coo3 <- subset(moo, lookattarget < 5)
+hoo <- ddply(coo3,.(subID,lookattarget,switch),summarise,numAEM=length(unique(trialnum)))
+newData1 <- data.frame(subID = "3", lookattarget = "0", switch = "1", numAEM = "0")
+newData2 <- data.frame(subID = "7", lookattarget = "0", switch = "1", numAEM = "0")
+newData3 <- data.frame(subID = "7", lookattarget = "1", switch = "1", numAEM = "0")
+newData4 <- data.frame(subID = "8", lookattarget = "0", switch = "2", numAEM = "0")
+newData5 <- data.frame(subID = "11", lookattarget = "0", switch = "1", numAEM = "0")
+newData6 <- data.frame(subID = "13", lookattarget = "0", switch = "1", numAEM = "0")
+newData7 <- data.frame(subID = "16", lookattarget = "1", switch = "1", numAEM = "0")
+newData8 <- data.frame(subID = "17", lookattarget = "0", switch = "1", numAEM = "0")
+newData9 <- data.frame(subID = "18", lookattarget = "0", switch = "2", numAEM = "0")
+newData10 <- data.frame(subID = "19", lookattarget = "0", switch = "2", numAEM = "0")
+newData11 <- data.frame(subID = "21", lookattarget = "0", switch = "1", numAEM = "0")
+newData12 <- data.frame(subID = "21", lookattarget = "1", switch = "2", numAEM = "0")
+newData13 <- data.frame(subID = "22", lookattarget = "0", switch = "2", numAEM = "0")
+newData14 <- data.frame(subID = "22", lookattarget = "1", switch = "2", numAEM = "0")
+newData15 <- data.frame(subID = "24", lookattarget = "0", switch = "1", numAEM = "0")
+newData16 <- data.frame(subID = "25", lookattarget = "0", switch = "1", numAEM = "0")
+newData17 <- data.frame(subID = "25", lookattarget = "0", switch = "2", numAEM = "0")
+newData18 <- data.frame(subID = "26", lookattarget = "0", switch = "1", numAEM = "0")
+newData19 <- data.frame(subID = "27", lookattarget = "0", switch = "1", numAEM = "0")
+newData20 <- data.frame(subID = "27", lookattarget = "0", switch = "2", numAEM = "0")
+newData21 <- data.frame(subID = "27", lookattarget = "1", switch = "1", numAEM = "0")
+newData22 <- data.frame(subID = "29", lookattarget = "0", switch = "2", numAEM = "0")
+newData23 <- data.frame(subID = "29", lookattarget = "1", switch = "2", numAEM = "0")
+newData24 <- data.frame(subID = "30", lookattarget = "0", switch = "1", numAEM = "0")
+newData25 <- data.frame(subID = "30", lookattarget = "0", switch = "2", numAEM = "0")
+newData26 <- data.frame(subID = "30", lookattarget = "1", switch = "2", numAEM = "0")
+newData27 <- data.frame(subID = "31", lookattarget = "0", switch = "1", numAEM = "0")
+
+hoo <- rbind( hoo[1:8,], newData1, hoo[9:109,] )
+hoo <- rbind( hoo[1:24,], newData2, hoo[25:110,] )
+hoo <- rbind( hoo[1:26,], newData3, hoo[27:111,] )
+hoo <- rbind( hoo[1:29,], newData4, hoo[30:112,] )
+hoo <- rbind( hoo[1:40,], newData5, hoo[41:113,] )
+hoo <- rbind( hoo[1:48,], newData6, hoo[49:114,] )
+hoo <- rbind( hoo[1:62,], newData7, hoo[63:115,] )
+hoo <- rbind( hoo[1:64,], newData8, hoo[65:116,] )
+hoo <- rbind( hoo[1:69,], newData9, hoo[70:117,] )
+hoo <- rbind( hoo[1:73,], newData10, hoo[74:118,] )
+hoo <- rbind( hoo[1:80,], newData11, hoo[81:119,] )
+hoo <- rbind( hoo[1:83,], newData12, hoo[84:120,] )
+hoo <- rbind( hoo[1:85,], newData13, hoo[86:121,] )
+hoo <- rbind( hoo[1:87,], newData14, hoo[88:122,] )
+hoo <- rbind( hoo[1:92,], newData15, hoo[93:123,] )
+hoo <- rbind( hoo[1:96,], newData16, hoo[97:124,] )
+hoo <- rbind( hoo[1:97,], newData17, hoo[98:125,] )
+hoo <- rbind( hoo[1:100,], newData18, hoo[101:126,] )
+hoo <- rbind( hoo[1:104,], newData19, hoo[105:127,] )
+hoo <- rbind( hoo[1:105,], newData20, hoo[106:128,] )
+hoo <- rbind( hoo[1:106,], newData21, hoo[107:129,] )
+hoo <- rbind( hoo[1:113,], newData22, hoo[114:130,] )
+hoo <- rbind( hoo[1:115,], newData23, hoo[116:131,] )
+hoo <- rbind( hoo[1:116,], newData24, hoo[117:132,] )
+hoo <- rbind( hoo[1:117,], newData25, hoo[118:133,] )
+hoo <- rbind( hoo[1:119,], newData26, hoo[120:134,] )
+hoo <- rbind( hoo[1:120,], newData27, hoo[121:135,] )
+
+hoo$numAEM <- as.numeric(hoo$numAEM)
+d0 <- subset(hoo, switch==1)
+d0$numAEM[63] <- 1
+d0$numAEM[9] <- 2
+d0$numAEM[11] <- 0
+d0$numAEM[16] <- 0
+d0$numAEM[17] <- 0
+d0$numAEM[19] <- 0
+d0$numAEM[23] <- 1
+d0$numAEM[27] <- 2
+d0$numAEM[35] <- 1
+d0$numAEM[37] <- 2
+d0$numAEM[39] <- 1
+d0$numAEM[45] <- 0
+d0$numAEM[65] <- 1
+d0$numAEM[67] <- 0
+
+d1 <- subset(hoo, switch==2)
+d1$numAEM[3] <- 0
+d1$numAEM[9] <- 2
+d1$numAEM[17] <- 0
+d1$numAEM[23] <- 1
+d1$numAEM[29] <- 3
+d1$numAEM[39] <- 2
+d1$numAEM[45] <- 0
+d1$numAEM[47] <- 0
+d1$numAEM[39] <- 2
+d1$numAEM[55] <- 1
+
+dfinal <- rbind(d0,d1)
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "PreSwitch",`2` = "PostSwitch")
+
+ggplot(dfinal,aes(x=factor(subID),y=numAEM,color=factor(lookattarget),fill=factor(lookattarget)))+geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Subject", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  guides(color=FALSE)+facet_wrap(~switch,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+hoo2 <- ddply(hoo,.(switch,lookattarget),summarise,avgAEM=mean(numAEM,na.rm = TRUE),seAEM=sd(numAEM, na.rm = TRUE)/sqrt(length(numAEM)))
+limits <- aes(ymax = avgAEM + seAEM, ymin=avgAEM - seAEM)
+
+ggplot(hoo2,aes(x=factor(switch),y=avgAEM,fill=factor(lookattarget)))+
+  geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Switch", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+#B. all AEM for block 1 and block 2
+#all AEM for block 1 and block 2, stack bar plot to show correct and incorrect (distractor)
+#0 = distractor, 1 = target, 5 = center,
+coo3 <- subset(moo, lookattarget < 5)
+hoo <- ddply(coo3,.(subID,lookattarget,block),summarise,numAEM=length(unique(trialnum)))
+
+newData1 <- data.frame(subID = "1", lookattarget = "0", block = "2", numAEM = "0")
+newData2 <- data.frame(subID = "3", lookattarget = "0", block = "2", numAEM = "0")
+newData3 <- data.frame(subID = "4", lookattarget = "0", block = "1", numAEM = "0")
+newData4 <- data.frame(subID = "7", lookattarget = "1", block = "1", numAEM = "0")
+newData5 <- data.frame(subID = "8", lookattarget = "0", block = "2", numAEM = "0")
+newData6 <- data.frame(subID = "11", lookattarget = "0", block = "2", numAEM = "0")
+newData7 <- data.frame(subID = "13", lookattarget = "0", block = "2", numAEM = "0")
+newData8 <- data.frame(subID = "16", lookattarget = "1", block = "2", numAEM = "0")
+newData9 <- data.frame(subID = "21", lookattarget = "0", block = "2", numAEM = "0")
+newData10 <- data.frame(subID = "22", lookattarget = "0", block = "2", numAEM = "0")
+newData11 <- data.frame(subID = "22", lookattarget = "1", block = "2", numAEM = "0")
+newData12 <- data.frame(subID = "24", lookattarget = "0", block = "2", numAEM = "0")
+newData13 <- data.frame(subID = "25", lookattarget = "0", block = "1", numAEM = "0")
+newData14 <- data.frame(subID = "25", lookattarget = "0", block = "2", numAEM = "0")
+newData15 <- data.frame(subID = "26", lookattarget = "0", block = "2", numAEM = "0")
+newData16 <- data.frame(subID = "27", lookattarget = "0", block = "1", numAEM = "0")
+newData17 <- data.frame(subID = "27", lookattarget = "0", block = "2", numAEM = "0")
+newData18 <- data.frame(subID = "27", lookattarget = "1", block = "2", numAEM = "0")
+newData19 <- data.frame(subID = "29", lookattarget = "0", block = "2", numAEM = "0")
+newData20 <- data.frame(subID = "29", lookattarget = "1", block = "2", numAEM = "0")
+newData21 <- data.frame(subID = "30", lookattarget = "0", block = "1", numAEM = "0")
+newData22 <- data.frame(subID = "30", lookattarget = "0", block = "2", numAEM = "0")
+newData23 <- data.frame(subID = "30", lookattarget = "1", block = "1", numAEM = "0")
+newData24 <- data.frame(subID = "31", lookattarget = "0", block = "2", numAEM = "0")
+newData25 <- data.frame(subID = "31", lookattarget = "1", block = "1", numAEM = "0")
+
+hoo <- rbind( hoo[1,], newData1, hoo[2:111,] )
+hoo <- rbind( hoo[1:9,], newData2, hoo[10:112,] )
+hoo <- rbind( hoo[1:12,], newData3, hoo[13:113,] )
+hoo <- rbind( hoo[1:26,], newData4, hoo[27:114,] )
+hoo <- rbind( hoo[1:29,], newData5, hoo[30:115,] )
+hoo <- rbind( hoo[1:41,], newData6, hoo[42:116,] )
+hoo <- rbind( hoo[1:49,], newData7, hoo[50:117,] )
+hoo <- rbind( hoo[1:63,], newData8, hoo[64:118,] )
+hoo <- rbind( hoo[1:81,], newData9, hoo[82:119,] )
+hoo <- rbind( hoo[1:85,], newData10, hoo[86:120,] )
+hoo <- rbind( hoo[1:87,], newData11, hoo[88:121,] )
+hoo <- rbind( hoo[1:93,], newData12, hoo[94:122,] )
+hoo <- rbind( hoo[1:96,], newData13, hoo[97:123,] )
+hoo <- rbind( hoo[1:97,], newData14, hoo[98:124,] )
+hoo <- rbind( hoo[1:101,], newData15, hoo[102:125,] )
+hoo <- rbind( hoo[1:104,], newData16, hoo[105:126,] )
+hoo <- rbind( hoo[1:105,], newData17, hoo[106:127,] )
+hoo <- rbind( hoo[1:107,], newData18, hoo[108:128,] )
+hoo <- rbind( hoo[1:113,], newData19, hoo[114:129,] )
+hoo <- rbind( hoo[1:115,], newData20, hoo[116:130,] )
+hoo <- rbind( hoo[1:116,], newData21, hoo[117:131,] )
+hoo <- rbind( hoo[1:117,], newData22, hoo[118:132,] )
+hoo <- rbind( hoo[1:118,], newData23, hoo[119:133,] )s
+hoo <- rbind( hoo[1:121,], newData24, hoo[122:134,] )
+hoo <- rbind( hoo[1:122,], newData25, hoo[123:135,] )
+
+hoo$numAEM <- as.numeric(hoo$numAEM)
+hoo <- na.omit(hoo)
+d0 <- subset(hoo, block==1)
+d0$numAEM[3] <- 1
+d0$numAEM[9] <- 1
+d0$numAEM[11] <- 0
+d0$numAEM[15] <- 1
+d0$numAEM[17] <- 0
+d0$numAEM[19] <- 2
+d0$numAEM[23] <- 1
+d0$numAEM[27] <- 1
+d0$numAEM[29] <- 2
+d0$numAEM[39] <- 1
+d0$numAEM[45] <- 0
+d0$numAEM[55] <- 0
+d0$numAEM[63] <- 1
+d0$numAEM[65] <- 1
+d0$numAEM[67] <- 0
+
+d1 <- subset(hoo, block==2)
+d1$numAEM[7] <- 1
+d1$numAEM[17] <- 0
+d1$numAEM[19] <- 2
+d1$numAEM[23] <- 1
+d1$numAEM[29] <- 2
+d1$numAEM[35] <- 2
+d1$numAEM[39] <- 2
+d1$numAEM[45] <- 0
+
+dfinal <- rbind(d0,d1)
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "Block 1",`2` = "Block 2")
+
+ggplot(dfinal,aes(x=factor(subID),y=numAEM,color=factor(lookattarget),fill=factor(lookattarget)))+geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Subject", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  guides(color=FALSE)+facet_wrap(~block,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+hoo2 <- ddply(hoo,.(block,lookattarget),summarise,avgAEM=mean(numAEM,na.rm = TRUE),seAEM=sd(numAEM, na.rm = TRUE)/sqrt(length(numAEM)))
+limits <- aes(ymax = avgAEM + seAEM, ymin=avgAEM - seAEM)
+
+ggplot(hoo2,aes(x=factor(block),y=avgAEM,fill=factor(lookattarget)))+
+  geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Block", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+
+#C. all AEM for block 1 and block 2 and preswitch postswitch
+#all AEM for block 1 and block 2, stack bar plot to show correct and incorrect (distractor)
+#0 = distractor, 1 = target, 5 = center,
+hoogood <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/hoogood.csv")
+  
+d0 <- subset(hoogood, block==1)
+d00 <- subset(d0, switch==1)
+d00$numAEM[3] <- 1
+d00$numAEM[9] <- 1
+d00$numAEM[15] <- 1
+d00$numAEM[19] <- 0
+d00$numAEM[27] <- 1
+d00$numAEM[37] <- 1
+d00$numAEM[39] <- 1
+d00$numAEM[45] <- 0
+d00$numAEM[55] <- 0
+d00$numAEM[57] <- 1
+d00$numAEM[63] <- 1
+d00$numAEM[65] <- 1
+d00$numAEM[67] <- 0
+
+d01 <- subset(d0, switch==2)
+d01$numAEM[5] <- 1
+d01$numAEM[9] <- 0
+d01$numAEM[11] <- 0
+d01$numAEM[17] <- 0
+d01$numAEM[21] <- 0
+d01$numAEM[23] <- 0
+d01$numAEM[27] <- 0
+d01$numAEM[29] <- 2
+d01$numAEM[33] <- 1
+d01$numAEM[39] <- 0
+d01$numAEM[45] <- 0
+d01$numAEM[47] <- 0
+d01$numAEM[55] <- 0
+d01$numAEM[63] <- 0
+d01$numAEM[65] <- 0
+
+d1 <- subset(hoogood, block==2)
+d10 <- subset(d1, switch==1)
+d10$numAEM[7] <- 0
+d10$numAEM[11] <- 0
+d10$numAEM[17] <- 0
+d10$numAEM[19] <- 0
+d10$numAEM[23] <- 0
+d10$numAEM[27] <- 1
+d10$numAEM[35] <- 0
+d10$numAEM[37] <- 1
+d10$numAEM[39] <- 0
+d10$numAEM[45] <- 0
+d10$numAEM[65] <- 0
+d10$numAEM[67] <- 0
+
+d11 <- subset(d1, switch==2)
+d11$numAEM[3] <- 0
+d11$numAEM[17] <- 0
+d11$numAEM[23] <- 1
+d11$numAEM[29] <- 1
+
+dfinal <- rbind(d00,d01,d10,d11)
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "Block 1",`2` = "Block 2")
+
+hoo2 <- ddply(dfinal,.(block,switch,lookattarget),summarise,avgAEM=mean(numAEM,na.rm = TRUE),seAEM=sd(numAEM, na.rm = TRUE)/sqrt(length(numAEM)))
+limits <- aes(ymax = avgAEM + seAEM, ymin=avgAEM - seAEM)
+
+ggplot(hoo2,aes(x=factor(switch),y=avgAEM,fill=factor(lookattarget)))+
+  geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Switch", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,3),breaks=seq(0,3,1))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))+
+  facet_wrap(~block,labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))
+
+#4. 
+#a. X axis = time, Y = x coordinate, lines = number of correct AEM preswitch
+#make sure to know how many babies for each line
+loo <- subset(moo, lookattarget == 1) #only care about AEMs to target/correct
+loo2 <- subset(loo, switch==1) #only care about preswitch
+hoo <- ddply(loo2,.(subID),summarise,numAEM=length(unique(trialnum)))
+newData1 <- data.frame(subID = "7", numAEM = "0")
+newData2 <- data.frame(subID = "16", numAEM = "0")
+newData3 <- data.frame(subID = "27", numAEM = "0")
+
+hoo <- rbind( hoo[1:6,], newData1, hoo[7:31,] )
+hoo <- rbind( hoo[1:15,], newData2, hoo[16:32,] )
+hoo <- rbind( hoo[1:26,], newData3, hoo[27:33,] )
+hoo$numAEM <- as.numeric(hoo$numAEM)
+which(hoo$numAEM==0) #16
+which(hoo$numAEM==1) #3 11 22 24 30 31
+which(hoo$numAEM==2) #29
+which(hoo$numAEM==3) #2 13
+which(hoo$numAEM==4) #5 14 19 21 28
+which(hoo$numAEM==5) #1  4  8 12 15 17 18 20 32 33
+which(hoo$numAEM==6) #6  9 10 23 25 26 34
+
+#b. X coordinate timecourse, pre and post
+boo <- subset(orig.sample8, switch==1)
+boo1 <- ddply(boo,.(subID,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo1$AEM <- 0
+boo1$AEM[boo1$subID==3 | boo1$subID==11 |boo1$subID==22 |boo1$subID==24 |boo1$subID==30 |boo1$subID==31] <- 1
+boo1$AEM[boo1$subID==29] <- 2
+boo1$AEM[boo1$subID==2 | boo1$subID==13] <- 3
+boo1$AEM[boo1$subID==5 | boo1$subID==14 |boo1$subID==19 |boo1$subID==21 |boo1$subID==28] <- 4
+boo1$AEM[boo1$subID==1 | boo1$subID==4 |boo1$subID==8 |boo1$subID==12 |boo1$subID==15 |boo1$subID==17|boo1$subID==18|boo1$subID==20|boo1$subID==32|boo1$subID==33] <- 5
+boo1$AEM[boo1$subID==6 | boo1$subID==9 |boo1$subID==10 |boo1$subID==23 |boo1$subID==25 |boo1$subID==26|boo1$subID==34] <- 6
+
+boo2 <- ddply(boo1,.(AEM,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(AEM),fill=factor(AEM)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for Preswitch")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_brewer(palette="Reds",name="Number of AEMs")+
+  scale_color_brewer(palette="Reds")+
+  guides(color=FALSE)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for Preswitch")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  guides(color=FALSE)+facet_wrap(~AEM,ncol=2)
+
+#b. do same for postswitch
+loo2 <- subset(loo, switch==2) #only care about postswitch
+hoo <- ddply(loo2,.(subID),summarise,numAEM=length(unique(trialnum)))
+newData1 <- data.frame(subID = "21", numAEM = "0")
+newData2 <- data.frame(subID = "22", numAEM = "0")
+newData3 <- data.frame(subID = "29", numAEM = "0")
+newData4 <- data.frame(subID = "30", numAEM = "0")
+
+hoo <- rbind( hoo[1:20,], newData1, hoo[21:30,] )
+hoo <- rbind( hoo[1:21,], newData2, hoo[22:31,] )
+hoo <- rbind( hoo[1:28,], newData3, hoo[29:32,] )
+hoo <- rbind( hoo[1:29,], newData3, hoo[30:33,] )
+
+hoo$numAEM <- as.numeric(hoo$numAEM)
+which(hoo$numAEM==0) #21 
+which(hoo$numAEM==1) #16 27
+which(hoo$numAEM==2) #3  4  7 10 19 26
+which(hoo$numAEM==3) #6 15 17 18 25 31 33
+which(hoo$numAEM==4) #5 11 13 14 20 32 34
+which(hoo$numAEM==5) #1 12 28
+which(hoo$numAEM==6) #2  8  9 23 24
+
+#b. X coordinate timecourse, pre and post
+boo <- subset(orig.sample8, switch==2)
+boo1 <- ddply(boo,.(subID,TIMECODE),summarise,xcoordinate=mean(RIGHT_GAZE_X,na.rm = TRUE)) #collapse across trials
+boo1$AEM <- 0
+boo1$AEM[boo1$subID==16 | boo1$subID==27] <- 1
+boo1$AEM[boo1$subID==3| boo1$subID==4| boo1$subID==7| boo1$subID==10| boo1$subID==19| boo1$subID==26] <- 2
+boo1$AEM[boo1$subID==6 | boo1$subID==15| boo1$subID==17| boo1$subID==18| boo1$subID==25| boo1$subID==31| boo1$subID==33] <- 3
+boo1$AEM[boo1$subID==5 | boo1$subID==11 |boo1$subID==13 |boo1$subID==14 |boo1$subID==20| boo1$subID==32| boo1$subID==34] <- 4
+boo1$AEM[boo1$subID==1 | boo1$subID==12 |boo1$subID==28] <- 5
+boo1$AEM[boo1$subID==2 | boo1$subID==8 |boo1$subID==9 |boo1$subID==23 |boo1$subID==24] <- 6
+
+boo2 <- ddply(boo1,.(AEM,TIMECODE),summarise,Xavg=mean(xcoordinate,na.rm = TRUE),seX=sd(xcoordinate, na.rm = TRUE)/sqrt(length(xcoordinate))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg,color=factor(AEM),fill=factor(AEM)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for Postswitch")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  scale_fill_brewer(palette="Greens",name="Number of AEMs")+
+  scale_color_brewer(palette="Greens")+
+  guides(color=FALSE)
+
+ggplot(boo2,aes(x=TIMECODE,y=Xavg))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse of X coordinate for Preswitch")+
+  labs(x = "Time", y = "X coordinate")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=Xavg-seX,ymax=Xavg+seX),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,1000), expand = c(0, 0))+
+  scale_y_continuous(limits=c(0,1280),breaks=seq(0,1280,200), expand = c(0, 0))+
+  guides(color=FALSE)+facet_wrap(~AEM,ncol=2)
+
+#5. quantify correct AEM, overall AEM for preswitch and post switch 
+#breaking it down for block 1 and block 2
+
+
+#all AEM for preswitch and post switch, stack bar plot to show correct and incorrect (distractor)
+#0 = distractor, 1 = target, 5 = center,
+coo3 <- subset(moo, lookattarget < 5)
+hoo <- ddply(coo3,.(subID,lookattarget,switch),summarise,numAEM=length(unique(trialnum)))
+newData1 <- data.frame(subID = "3", lookattarget = "0", switch = "1", numAEM = "0")
+newData2 <- data.frame(subID = "7", lookattarget = "0", switch = "1", numAEM = "0")
+newData3 <- data.frame(subID = "7", lookattarget = "1", switch = "1", numAEM = "0")
+newData4 <- data.frame(subID = "8", lookattarget = "0", switch = "2", numAEM = "0")
+newData5 <- data.frame(subID = "11", lookattarget = "0", switch = "1", numAEM = "0")
+newData6 <- data.frame(subID = "13", lookattarget = "0", switch = "1", numAEM = "0")
+newData7 <- data.frame(subID = "16", lookattarget = "1", switch = "1", numAEM = "0")
+newData8 <- data.frame(subID = "17", lookattarget = "0", switch = "1", numAEM = "0")
+newData9 <- data.frame(subID = "18", lookattarget = "0", switch = "2", numAEM = "0")
+newData10 <- data.frame(subID = "19", lookattarget = "0", switch = "2", numAEM = "0")
+newData11 <- data.frame(subID = "21", lookattarget = "0", switch = "1", numAEM = "0")
+newData12 <- data.frame(subID = "21", lookattarget = "1", switch = "2", numAEM = "0")
+newData13 <- data.frame(subID = "22", lookattarget = "0", switch = "2", numAEM = "0")
+newData14 <- data.frame(subID = "22", lookattarget = "1", switch = "2", numAEM = "0")
+newData15 <- data.frame(subID = "24", lookattarget = "0", switch = "1", numAEM = "0")
+newData16 <- data.frame(subID = "25", lookattarget = "0", switch = "1", numAEM = "0")
+newData17 <- data.frame(subID = "25", lookattarget = "0", switch = "2", numAEM = "0")
+newData18 <- data.frame(subID = "26", lookattarget = "0", switch = "1", numAEM = "0")
+newData19 <- data.frame(subID = "27", lookattarget = "0", switch = "1", numAEM = "0")
+newData20 <- data.frame(subID = "27", lookattarget = "0", switch = "2", numAEM = "0")
+newData21 <- data.frame(subID = "27", lookattarget = "1", switch = "1", numAEM = "0")
+newData22 <- data.frame(subID = "29", lookattarget = "0", switch = "2", numAEM = "0")
+newData23 <- data.frame(subID = "29", lookattarget = "1", switch = "2", numAEM = "0")
+newData24 <- data.frame(subID = "30", lookattarget = "0", switch = "1", numAEM = "0")
+newData25 <- data.frame(subID = "30", lookattarget = "0", switch = "2", numAEM = "0")
+newData26 <- data.frame(subID = "30", lookattarget = "1", switch = "2", numAEM = "0")
+newData27 <- data.frame(subID = "31", lookattarget = "0", switch = "1", numAEM = "0")
+
+hoo <- rbind( hoo[1:8,], newData1, hoo[9:109,] )
+hoo <- rbind( hoo[1:24,], newData2, hoo[25:110,] )
+hoo <- rbind( hoo[1:26,], newData3, hoo[27:111,] )
+hoo <- rbind( hoo[1:29,], newData4, hoo[30:112,] )
+hoo <- rbind( hoo[1:40,], newData5, hoo[41:113,] )
+hoo <- rbind( hoo[1:48,], newData6, hoo[49:114,] )
+hoo <- rbind( hoo[1:62,], newData7, hoo[63:115,] )
+hoo <- rbind( hoo[1:64,], newData8, hoo[65:116,] )
+hoo <- rbind( hoo[1:69,], newData9, hoo[70:117,] )
+hoo <- rbind( hoo[1:73,], newData10, hoo[74:118,] )
+hoo <- rbind( hoo[1:80,], newData11, hoo[81:119,] )
+hoo <- rbind( hoo[1:83,], newData12, hoo[84:120,] )
+hoo <- rbind( hoo[1:85,], newData13, hoo[86:121,] )
+hoo <- rbind( hoo[1:87,], newData14, hoo[88:122,] )
+hoo <- rbind( hoo[1:92,], newData15, hoo[93:123,] )
+hoo <- rbind( hoo[1:96,], newData16, hoo[97:124,] )
+hoo <- rbind( hoo[1:97,], newData17, hoo[98:125,] )
+hoo <- rbind( hoo[1:100,], newData18, hoo[101:126,] )
+hoo <- rbind( hoo[1:104,], newData19, hoo[105:127,] )
+hoo <- rbind( hoo[1:105,], newData20, hoo[106:128,] )
+hoo <- rbind( hoo[1:106,], newData21, hoo[107:129,] )
+hoo <- rbind( hoo[1:113,], newData22, hoo[114:130,] )
+hoo <- rbind( hoo[1:115,], newData23, hoo[116:131,] )
+hoo <- rbind( hoo[1:116,], newData24, hoo[117:132,] )
+hoo <- rbind( hoo[1:117,], newData25, hoo[118:133,] )
+hoo <- rbind( hoo[1:119,], newData26, hoo[120:134,] )
+hoo <- rbind( hoo[1:120,], newData27, hoo[121:135,] )
+
+hoo$numAEM <- as.numeric(hoo$numAEM)
+d0 <- subset(hoo, switch==1)
+d0$numAEM[63] <- 1
+d0$numAEM[9] <- 2
+d0$numAEM[11] <- 0
+d0$numAEM[16] <- 0
+d0$numAEM[17] <- 0
+d0$numAEM[19] <- 0
+d0$numAEM[23] <- 1
+d0$numAEM[27] <- 2
+d0$numAEM[35] <- 1
+d0$numAEM[37] <- 2
+d0$numAEM[39] <- 1
+d0$numAEM[45] <- 0
+d0$numAEM[65] <- 1
+d0$numAEM[67] <- 0
+
+d1 <- subset(hoo, switch==2)
+d1$numAEM[3] <- 0
+d1$numAEM[9] <- 2
+d1$numAEM[17] <- 0
+d1$numAEM[23] <- 1
+d1$numAEM[29] <- 3
+d1$numAEM[39] <- 2
+d1$numAEM[45] <- 0
+d1$numAEM[47] <- 0
+d1$numAEM[39] <- 2
+d1$numAEM[55] <- 1
+
+dfinal <- rbind(d0,d1)
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "PreSwitch",`2` = "PostSwitch")
+
+ggplot(dfinal,aes(x=factor(subID),y=numAEM,color=factor(lookattarget),fill=factor(lookattarget)))+geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Subject", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  guides(color=FALSE)+facet_wrap(~switch,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+hoo2 <- ddply(hoo,.(switch,lookattarget),summarise,avgAEM=mean(numAEM,na.rm = TRUE),seAEM=sd(numAEM, na.rm = TRUE)/sqrt(length(numAEM)))
+limits <- aes(ymax = avgAEM + seAEM, ymin=avgAEM - seAEM)
+
+ggplot(hoo2,aes(x=factor(switch),y=avgAEM,fill=factor(lookattarget)))+
+  geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Switch", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  scale_x_discrete(breaks=c("1","2"),labels=c("pre-switch", "post-switch"))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+#B. all AEM for block 1 and block 2
+#all AEM for block 1 and block 2, stack bar plot to show correct and incorrect (distractor)
+#0 = distractor, 1 = target, 5 = center,
+coo3 <- subset(moo, lookattarget ==1)
+hoo <- ddply(coo3,.(subID,lookattarget,block),summarise,numAEM=length(unique(trialnum)))
+
+newData1 <- data.frame(subID = "7", lookattarget = "1", block = "1", numAEM = "0")
+newData2 <- data.frame(subID = "16", lookattarget = "1", block = "2", numAEM = "0")
+newData3 <- data.frame(subID = "22", lookattarget = "1", block = "2", numAEM = "0")
+newData4 <- data.frame(subID = "27", lookattarget = "1", block = "2", numAEM = "0")
+newData5 <- data.frame(subID = "29", lookattarget = "1", block = "2", numAEM = "0")
+newData6 <- data.frame(subID = "30", lookattarget = "1", block = "1", numAEM = "0")
+newData7 <- data.frame(subID = "31", lookattarget = "1", block = "1", numAEM = "0")
+
+hoo <- rbind( hoo[1,], newData1, hoo[2:111,] )
+hoo <- rbind( hoo[1:9,], newData2, hoo[10:112,] )
+hoo <- rbind( hoo[1:12,], newData3, hoo[13:113,] )
+hoo <- rbind( hoo[1:26,], newData4, hoo[27:114,] )
+hoo <- rbind( hoo[1:29,], newData5, hoo[30:115,] )
+hoo <- rbind( hoo[1:41,], newData6, hoo[42:116,] )
+hoo <- rbind( hoo[1:49,], newData7, hoo[50:117,] )
+hoo <- rbind( hoo[1:63,], newData8, hoo[64:118,] )
+hoo <- rbind( hoo[1:81,], newData9, hoo[82:119,] )
+hoo <- rbind( hoo[1:85,], newData10, hoo[86:120,] )
+hoo <- rbind( hoo[1:87,], newData11, hoo[88:121,] )
+hoo <- rbind( hoo[1:93,], newData12, hoo[94:122,] )
+hoo <- rbind( hoo[1:96,], newData13, hoo[97:123,] )
+hoo <- rbind( hoo[1:97,], newData14, hoo[98:124,] )
+hoo <- rbind( hoo[1:101,], newData15, hoo[102:125,] )
+hoo <- rbind( hoo[1:104,], newData16, hoo[105:126,] )
+hoo <- rbind( hoo[1:105,], newData17, hoo[106:127,] )
+hoo <- rbind( hoo[1:107,], newData18, hoo[108:128,] )
+hoo <- rbind( hoo[1:113,], newData19, hoo[114:129,] )
+hoo <- rbind( hoo[1:115,], newData20, hoo[116:130,] )
+hoo <- rbind( hoo[1:116,], newData21, hoo[117:131,] )
+hoo <- rbind( hoo[1:117,], newData22, hoo[118:132,] )
+hoo <- rbind( hoo[1:118,], newData23, hoo[119:133,] )s
+hoo <- rbind( hoo[1:121,], newData24, hoo[122:134,] )
+hoo <- rbind( hoo[1:122,], newData25, hoo[123:135,] )
+
+hoo$numAEM <- as.numeric(hoo$numAEM)
+hoo <- na.omit(hoo)
+d0 <- subset(hoo, block==1)
+d0$numAEM[3] <- 1
+d0$numAEM[9] <- 1
+d0$numAEM[11] <- 0
+d0$numAEM[15] <- 1
+d0$numAEM[17] <- 0
+d0$numAEM[19] <- 2
+d0$numAEM[23] <- 1
+d0$numAEM[27] <- 1
+d0$numAEM[29] <- 2
+d0$numAEM[39] <- 1
+d0$numAEM[45] <- 0
+d0$numAEM[55] <- 0
+d0$numAEM[63] <- 1
+d0$numAEM[65] <- 1
+d0$numAEM[67] <- 0
+
+d1 <- subset(hoo, block==2)
+d1$numAEM[7] <- 1
+d1$numAEM[17] <- 0
+d1$numAEM[19] <- 2
+d1$numAEM[23] <- 1
+d1$numAEM[29] <- 2
+d1$numAEM[35] <- 2
+d1$numAEM[39] <- 2
+d1$numAEM[45] <- 0
+
+dfinal <- rbind(d0,d1)
+dodge <- position_dodge(width=0.9)
+split <- c(`1` = "Block 1",`2` = "Block 2")
+
+ggplot(dfinal,aes(x=factor(subID),y=numAEM,color=factor(lookattarget),fill=factor(lookattarget)))+geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Subject", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  guides(color=FALSE)+facet_wrap(~block,dir="v",labeller = as_labeller(split))+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+  
+hoo2 <- ddply(hoo,.(block,lookattarget),summarise,avgAEM=mean(numAEM,na.rm = TRUE),seAEM=sd(numAEM, na.rm = TRUE)/sqrt(length(numAEM)))
+limits <- aes(ymax = avgAEM + seAEM, ymin=avgAEM - seAEM)
+
+ggplot(hoo2,aes(x=factor(block),y=avgAEM,fill=factor(lookattarget)))+
+  geom_bar(stat="identity")+
+  ggtitle("All AEMs")+
+  labs(x = "Block", y = "Number of AEMs")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  scale_y_continuous(limits=c(0,6),breaks=seq(0,6,1))+
+  scale_fill_discrete(name="AEM type",breaks=c("0","1"),labels=c("Distractor", "Target"))
+
+```
