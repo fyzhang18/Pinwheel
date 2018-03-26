@@ -193,7 +193,7 @@ aembreakdown <- x1
 
 add in trialtype info for orig.sample4
 ```{r}
-z1 <- ddply(aembreakdown,.(subID,trialnum,trialnum2),summarise,trialtype=(unique(type,na.rm = TRUE)))  
+z1 <- ddply(aembreakdown,.(subID,trialnum,trialnum2),summarise,trialtype=unique(type,na.rm = TRUE))  
 z1 <- subset(z1, trialtype < 3)
 
 orig.sample4$trialtype <- 3
@@ -205,14 +205,6 @@ for (j in 1:length(z1$subID)) {
   z <- z1$trialtype[j]
   orig.sample4$trialtype[orig.sample4$subID==x & orig.sample4$TRIAL_INDEX==y & orig.sample4$NEWTRIALNUM==y2] <- z
   }
-```
-
-Recode every trial two times
--match vs mismatch for the pupil 
--Or correct vs incorrect for AEM
-
-```{r}
-
 ```
 
 categorize babies based on % AEM , do median split 
