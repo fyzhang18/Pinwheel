@@ -406,121 +406,767 @@ ggplot(moo,aes(x=factor(subID),y=percent,color=factor(trialtype),fill=factor(tri
 ```
 
 Correlation to see if correct AEM is related to pupil difference
-x axis = % of correct AEMs for each baby and each block 
-y axis = subtraction between the pupil of 1500-2000ms
+x axis = % of correct AEMs for each baby and each block (correct AEM / total num of trials)
+y axis = subtraction of preswitch and postswitch pupil of 1500-2000ms, for each block
 ```{r}
-#1. % = correct AEM / total num of AEM
+#x axis (calculate percent of correct aem)
+u1 <- ddply(orig.sample5,.(subID,switch,block,TRIAL_INDEX),summarise,aemtrialtype=unique(trialtype.aem,na.rm = TRUE))
+u2 <- ddply(u1,.(subID,block),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
 
-#2. % = correct AEM / total num of trials
+#grouping trials into trialtypes
+u3 <- subset(u1, aemtrialtype==1)
+u4 <- ddply(u3,.(subID,block),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
 
+#calculate percent
+u2$percentcorrect <- 0
+for (j in 1:length(u2$subID)) { 
+x <- u2$subID[j]  
+x2 <- u2$block[j]
+z <- which(u4$subID==x & u4$block==x2)
+if (length(z)==0) { #if doesn't match
+  u2$percentcorrect[j] <- 0
+} else {
+  u2$percentcorrect[j] <-u4$numoftrials[z] / u2$numoftrials[j]
+}} 
+
+#y axis (pupil for 1500-2000ms)
+poo <- subset(orig.sample5, TIMECODE >1499 & TIMECODE < 2001)
+y1 <- ddply(poo,.(subID,switch,block),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE))
+y1.pre <- subset(y1, switch==1)
+y1.post <- subset(y1, switch==2)
+
+yfinal <- data.frame(subID=numeric(78),block=numeric(78),pupildiff=numeric(78))
+subs <- unique(orig.sample5$subID)
+yfinal$subID <- subs
+yfinal$block <- rep(1:3, each = 26)
+
+for (j in 1:length(yfinal$subID)) { 
+x <- yfinal$subID[j]  
+x2 <- yfinal$block[j]
+z <- which(y1.pre$subID==x & y1.pre$block==x2)
+z2 <- which(y1.post$subID==x & y1.post$block==x2)
+if (length(z)==0 | length(z2)==0) { #if doesn't match
+  yfinal$pupildiff[j] <- NA
+} else {
+  yfinal$pupildiff[j] <- y1.post$pupilsize[z2] - y1.pre$pupilsize[z]
+}} 
+
+#combine pupil difference and aem
+yfinal$percentcorrect <- 0
+for (j in 1:length(yfinal$subID)) { 
+x <- yfinal$subID[j]  
+x2 <- yfinal$block[j]
+z <- which(u2$subID==x & u2$block==x2)
+if (length(z)==0) { #if doesn't match
+  yfinal$percentcorrect[j] <- NA
+} else {
+  yfinal$percentcorrect[j] <- u2$percentcorrect[z]
+}} 
+
+ggplot(yfinal,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(block)))+
+  geom_point(size=5)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs (correct AEM/num of trials)", y = "pupil difference bw 1500-2000ms (post-pre)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(yfinal$pupildiff[yfinal$block==1], yfinal$percentcorrect[yfinal$block==1], alternative = "two.sided", method = "pearson")
+cor.test(yfinal$pupildiff[yfinal$block==2], yfinal$percentcorrect[yfinal$block==2], alternative = "two.sided", method = "pearson")
+cor.test(yfinal$pupildiff[yfinal$block==3], yfinal$percentcorrect[yfinal$block==3], alternative = "two.sided", method = "pearson")
+
+#remove 0%
+yfinal2 <- subset(yfinal, percentcorrect > 0)
+ggplot(yfinal2,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(block)))+
+  geom_point(size=5)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs (correct AEM/num of trials)", y = "pupil difference bw 1500-2000ms (post-pre)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(yfinal2$pupildiff[yfinal2$block==1], yfinal2$percentcorrect[yfinal2$block==1], alternative = "two.sided", method = "pearson")
+cor.test(yfinal2$pupildiff[yfinal2$block==2], yfinal2$percentcorrect[yfinal2$block==2], alternative = "two.sided", method = "pearson")
+cor.test(yfinal2$pupildiff[yfinal2$block==3], yfinal2$percentcorrect[yfinal2$block==3], alternative = "two.sided", method = "pearson")
 ```
 
 Correlation to see if correct AEM is related to pupil difference
-x axis = % of correct AEMs for each baby and each block 
+x axis = % of correct AEMs for each baby and each block (correct AEM / total num of trials)
 y axis = subtraction between the pupil of 2500-4000
 ```{r}
-#1. % = correct AEM / total num of AEM
+#x axis (calculate percent of correct aem)
+u1 <- ddply(orig.sample5,.(subID,switch,block,TRIAL_INDEX),summarise,aemtrialtype=unique(trialtype.aem,na.rm = TRUE))
+u2 <- ddply(u1,.(subID,block),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
 
-#2. % = correct AEM / total num of trials
+#grouping trials into trialtypes
+u3 <- subset(u1, aemtrialtype==1)
+u4 <- ddply(u3,.(subID,block),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+
+#calculate percent
+u2$percentcorrect <- 0
+for (j in 1:length(u2$subID)) { 
+x <- u2$subID[j]  
+x2 <- u2$block[j]
+z <- which(u4$subID==x & u4$block==x2)
+if (length(z)==0) { #if doesn't match
+  u2$percentcorrect[j] <- 0
+} else {
+  u2$percentcorrect[j] <-u4$numoftrials[z] / u2$numoftrials[j]
+}} 
+
+#y axis (pupil for 2500-4000ms)
+poo <- subset(orig.sample5, TIMECODE >2499 & TIMECODE < 4001)
+y1 <- ddply(poo,.(subID,switch,block),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE))
+y1.pre <- subset(y1, switch==1)
+y1.post <- subset(y1, switch==2)
+
+yfinal <- data.frame(subID=numeric(78),block=numeric(78),pupildiff=numeric(78))
+subs <- unique(orig.sample5$subID)
+yfinal$subID <- subs
+yfinal$block <- rep(1:3, each = 26)
+
+for (j in 1:length(yfinal$subID)) { 
+x <- yfinal$subID[j]  
+x2 <- yfinal$block[j]
+z <- which(y1.pre$subID==x & y1.pre$block==x2)
+z2 <- which(y1.post$subID==x & y1.post$block==x2)
+if (length(z)==0 | length(z2)==0) { #if doesn't match
+  yfinal$pupildiff[j] <- NA
+} else {
+  yfinal$pupildiff[j] <- y1.post$pupilsize[z2] - y1.pre$pupilsize[z]
+}} 
+
+#combine pupil difference and aem
+yfinal$percentcorrect <- 0
+for (j in 1:length(yfinal$subID)) { 
+x <- yfinal$subID[j]  
+x2 <- yfinal$block[j]
+z <- which(u2$subID==x & u2$block==x2)
+if (length(z)==0) { #if doesn't match
+  yfinal$percentcorrect[j] <- NA
+} else {
+  yfinal$percentcorrect[j] <- u2$percentcorrect[z]
+}} 
+
+#plot
+ggplot(yfinal,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(block)))+
+  geom_point(size=5)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs (correct AEM/num of trials)", y = "pupil difference bw 2500-4000ms (post-pre)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(yfinal$pupildiff[yfinal$block==1], yfinal$percentcorrect[yfinal$block==1], alternative = "two.sided", method = "pearson")
+cor.test(yfinal$pupildiff[yfinal$block==2], yfinal$percentcorrect[yfinal$block==2], alternative = "two.sided", method = "pearson")
+cor.test(yfinal$pupildiff[yfinal$block==3], yfinal$percentcorrect[yfinal$block==3], alternative = "two.sided", method = "pearson")
+
+#remove 0%
+yfinal2 <- subset(yfinal, percentcorrect > 0)
+ggplot(yfinal2,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(block)))+
+  geom_point(size=5)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs (correct AEM/num of trials)", y = "pupil difference bw 2500-4000ms (post-pre)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(yfinal2$pupildiff[yfinal2$block==1], yfinal2$percentcorrect[yfinal2$block==1], alternative = "two.sided", method = "pearson")
+cor.test(yfinal2$pupildiff[yfinal2$block==2], yfinal2$percentcorrect[yfinal2$block==2], alternative = "two.sided", method = "pearson")
+cor.test(yfinal2$pupildiff[yfinal2$block==3], yfinal2$percentcorrect[yfinal2$block==3], alternative = "two.sided", method = "pearson")
 
 ```
 
 How well u do in preswitch (% correct AEM in preswitch) -> postswitch (% correct AEM in postswitch) correlation for every subject 
-% correct AEM can be calculated in two ways
-1. correct AEM / total num of AEM
-2. correct AEM / total num of trials
+(correct AEM / total num of trials)
 ```{r}
-#1. % = correct AEM / total num of AEM
+#x axis (calculate percent of correct aem)
+u1 <- ddply(orig.sample5,.(subID,switch,TRIAL_INDEX),summarise,aemtrialtype=unique(trialtype.aem,na.rm = TRUE))
+u1.pre <- subset(u1, aemtrialtype==1 & switch==1)
+u1.post <- subset(u1, aemtrialtype==1 & switch==2)
 
-#2. % = correct AEM / total num of trials
-```
+#num of correct aem for every subject
+u2.pre <- ddply(u1.pre,.(subID,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+u2.post <- ddply(u1.post,.(subID,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
 
-How well u do in early postswitch (% correct AEM in trials 1-4) -> later postswitch (% correct AEM in trials 5-8) correlation for every subject 
-% correct AEM can be calculated in two ways
-1. correct AEM / total num of AEM
-2. correct AEM / total num of trials
-```{r}
-#1. % = correct AEM / total num of AEM
+#number of trials for every subject
+u3a <- subset(u1, switch==1)
+u3b <- subset(u1, switch==2)
+u3.pre <- ddply(u3a,.(subID,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+u3.post <- ddply(u3b,.(subID,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
 
-#2. % = correct AEM / total num of trials
-```
+#calculate percent for preswitch
+u3.pre$percentcorrect <- 0
+for (j in 1:length(u3.pre$subID)) { 
+x <- u3.pre$subID[j]  
+z <- which(u2.pre$subID==x)
+if (length(z)==0) { #if doesn't match
+  u3.pre$percentcorrect[j] <- 0
+} else {
+  u3.pre$percentcorrect[j] <-u2.pre$numoftrials[z] / u3.pre$numoftrials[j]
+}} 
 
-pupil timecourse for 3 trial types (correct, incorrect, no AEM)
-```{r}
-#1. preswitch
+#calculate percent for postswtich
+u3.post$percentcorrect <- 0
+for (j in 1:length(u3.post$subID)) { 
+x <- u3.post$subID[j]  
+z <- which(u2.post$subID==x)
+if (length(z)==0) { #if doesn't match
+  u3.post$percentcorrect[j] <- 0
+} else {
+  u3.post$percentcorrect[j] <-u2.post$numoftrials[z] / u3.post$numoftrials[j]
+}} 
 
-#2. postswitch
+ufinal <- u3.pre
+names(ufinal)[4] <- "percentcorrect.pre"
+ufinal$percentcorrect.post <- u3.post$percentcorrect
+
+#plot
+ggplot(ufinal,aes(x=percentcorrect.pre,y=percentcorrect.post))+
+  geom_count(show.legend=F)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs preswitch (correct AEM/num of trials)", y = "% of correct AEMs postswitch (correct AEM/num of trials)")+
+  theme(plot.title = element_text(face="bold", size=14, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=14))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(ufinal$percentcorrect.pre, ufinal$percentcorrect.post, alternative = "two.sided", method = "pearson")
+
+#remove 0%
+ufinal2 <- subset(ufinal, !(percentcorrect.pre==0 & percentcorrect.post==0))
+ggplot(ufinal2,aes(x=percentcorrect.pre,y=percentcorrect.post))+
+  geom_count(show.legend=F)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs preswitch (correct AEM/num of trials)", y = "% of correct AEMs postswitch (correct AEM/num of trials)")+
+  theme(plot.title = element_text(face="bold", size=14, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=14))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position = "bottom")+
+  scale_color_discrete(name = "Block")
+
+cor.test(ufinal2$percentcorrect.pre, ufinal2$percentcorrect.post, alternative = "two.sided", method = "pearson")
+
 ```
 
 pupil timecourse for 3 trial types (pupil match, pupil mismatch, no AEM)
 ```{r}
-#1. preswitch
+#separate for all 3 trial types
+boo1 <- ddply(orig.sample5,.(subID,trialtype.pupil,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(trialtype.pupil,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
 
-#2. postswitch
+#type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.pupil),fill=factor(trialtype.pupil)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_color_manual(values = c("#f1af8f", "#2398a0","#acc2c7"))+
+  scale_fill_manual(values = c("#f1af8f", "#2398a0","#acc2c7"),name="Trial breakdown",breaks=c("1","2","3"),labels=c("pupil match", "pupil mismatch","no AEM"))+
+  theme(legend.position = "bottom")
+
+#pre vs post
+boo1 <- ddply(orig.sample5,.(subID,switch,trialtype.pupil,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(switch,trialtype.pupil,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+split <- c(`1` = "preswitch",`2` = "postswitch")
+#type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.pupil),fill=factor(trialtype.pupil)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_color_manual(values = c("#f1af8f", "#2398a0","#acc2c7"))+
+  scale_fill_manual(values = c("#f1af8f", "#2398a0","#acc2c7"),name="Trial breakdown",breaks=c("1","2","3"),labels=c("pupil match", "pupil mismatch","no AEM"))+
+  theme(strip.text = element_text(size=16))+
+  theme(legend.position = "bottom")+facet_wrap(~switch,labeller = as_labeller(split))
+
 ```
 
-pupil timecourse for 3 trial types (aem, no AEM)
+pupil timecourse for 3 trial types (correct, incorrect, no AEM)
 ```{r}
-#1. preswitch
+#separate for all 3 trial types
+#get average pupil size
+boo1 <- ddply(orig.sample5,.(subID,trialtype.aem,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) 
+boo1 <- subset(boo1, TIMECODE < 4001)
+#collapse across subs
+boo2 <- ddply(boo1,.(trialtype.aem,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil)))
+vlines <- c(250,1750,2550)
 
-#2. postswitch
+#type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem),fill=factor(trialtype.aem)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","2","3"),labels=c("Correct AEM", "Incorrect AEM","No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")
+
+#pre vs post
+boo1 <- ddply(orig.sample5,.(subID,switch,trialtype.aem,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(switch,trialtype.aem,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+split <- c(`1` = "preswitch",`2` = "postswitch")
+#type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem),fill=factor(trialtype.aem)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","2","3"),labels=c("Correct AEM", "Incorrect AEM","No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")+
+  theme(strip.text = element_text(size=16))+
+  facet_wrap(~switch,labeller = as_labeller(split))
+
+```
+
+pupil timecourse for 2 trial types (aem, no AEM)
+```{r}
+#get trial types
+coo <- orig.sample5
+coo$trialtype.aem2 <- coo$trialtype.aem
+coo$trialtype.aem2[coo$trialtype.aem2==2] <- 1 #group correct and incorrect together
+unique(coo$trialtype.aem2)
+
+boo1 <- ddply(coo,.(subID,trialtype.aem2,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) 
+boo1 <- subset(boo1, TIMECODE < 4001)
+#collapse across subs
+boo2 <- ddply(boo1,.(trialtype.aem2,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil)))
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem2),fill=factor(trialtype.aem2)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","3"),labels=c("AEM", "No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")
+
+#pre vs post
+boo1 <- ddply(coo,.(subID,switch,trialtype.aem2,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
+boo1 <- subset(boo1, TIMECODE < 4001)
+boo2 <- ddply(boo1,.(switch,trialtype.aem2,TIMECODE),summarise,pupilavg=mean(pupil,na.rm = TRUE),sepupil=sd(pupil, na.rm = TRUE)/sqrt(length(pupil))) #collapse across subs
+vlines <- c(250,1750,2550)
+split <- c(`1` = "preswitch",`2` = "postswitch")
+#type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem2),fill=factor(trialtype.aem2)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Timecourse: Pupil Change")+
+  labs(x = "Time", y = "Pupil change from baseline (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","3"),labels=c("AEM", "No AEM"))+
+  scale_color_brewer(palette="Set3")+
+  theme(legend.position = "bottom")+
+  theme(strip.text = element_text(size=16))+
+  facet_wrap(~switch,labeller = as_labeller(split))
 ```
 
 pupil timecourse preswitch
-color by babies who made more correct AEMs than incorrect AEMs, and babies who made more incorrect than correct
+color by babies who made more correct AEMs than incorrect AEMs, and babies who made more incorrect than correct, babies who made equal
 plot Histogram of the proportion (proportion of correct AEMs)
 ```{r}
-#histogram
+#preswitch only!!!
+foo <- subset(orig.sample5, switch==1)
 
+#for each subject, calculate % correct AEM and % incorrect AEM
+doo <- ddply(foo,.(subID,trialtype.aem),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+doo1 <- subset(doo, trialtype.aem==1) #correct AEM
+doo2 <- subset(doo, trialtype.aem==2) #incorrect AEM
+doo.total <- ddply(doo,.(subID),summarise,totaltrials=sum(numoftrials,na.rm = TRUE))
 
-#pupil time course
+doo.total$percentcorrect <- 0
+for (j in 1:length(doo.total$subID)) { 
+x <- doo.total$subID[j]  
+z <- which(doo1$subID==x)
+if (length(z)==0) { #if doesn't match
+  doo.total$percentcorrect[j] <- 0
+} else {
+  doo.total$percentcorrect[j] <-doo1$numoftrials[z] / doo.total$totaltrials[j]
+}} 
 
+doo.total$percentincorrect <- 0
+for (j in 1:length(doo.total$subID)) { 
+x <- doo.total$subID[j]  
+z <- which(doo2$subID==x)
+if (length(z)==0) { #if doesn't match
+  doo.total$percentincorrect[j] <- 0
+} else {
+  doo.total$percentincorrect[j] <-doo2$numoftrials[z] / doo.total$totaltrials[j]
+}} 
+
+#code babies 1 = more correct than incorrect AEMs, 2 = more incorrect than correct AEM, 3 = equal correct and incorrect AEM 
+doo.total$subaem <- 0
+for (j in 1:length(doo.total$subID)) { 
+if (doo.total$percentcorrect[j] > doo.total$percentincorrect[j]) { 
+  doo.total$subaem[j] <- 1
+} 
+if (doo.total$percentcorrect[j] < doo.total$percentincorrect[j]) { 
+  doo.total$subaem[j] <- 2
+} 
+if (doo.total$percentcorrect[j] == doo.total$percentincorrect[j]) { #if doesn't match
+  doo.total$subaem[j] <- 3
+}   
+} 
+
+#histogram of % correct AEM
+ggplot(doo.total,aes(doo.total$percentcorrect))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent correct AEM in preswitch")+
+  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))
+
+#histogram of % incorrect AEM
+ggplot(doo.total,aes(doo.total$percentincorrect))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent incorrect AEM in preswitch")+
+  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))
+
+#histogram of % subaem
+ggplot(doo.total,aes(doo.total$subaem))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#categorize subjects
+subs <- unique(doo.total$subID)
+which(doo.total$subaem==2) #2  3  4  5 11 13 16 19 22 23
+which(doo.total$subaem==3) #6  9 14 17 18 24 25
+
+foo$subaem <- 1
+foo$subaem[foo$subID==subs[2] | foo$subID==subs[3] |foo$subID==subs[4] |foo$subID==subs[5] |foo$subID==subs[11]| foo$subID== subs[13]| foo$subID==subs[16] | foo$subID== subs[19]| foo$subID== subs[22]| foo$subID== subs[23]] <- 2
+foo$subaem[foo$subID==subs[6] | foo$subID==subs[9] | foo$subID==subs[14] |foo$subID==subs[17] |foo$subID==subs[18]| foo$subID== subs[24]| foo$subID==subs[25]] <- 3
+
+#pupil time course preswitch
+boo1 <- ddply(foo,.(subID,subaem,TIMECODE),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across subs
+boo2 <- ddply(boo1,.(subaem,TIMECODE),summarise,pupilavg=mean(pupilsize,na.rm = TRUE),sepupil=sd(pupilsize, na.rm = TRUE)/sqrt(length(pupilsize))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(subaem),fill=factor(subaem)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse preswitch")+
+  labs(x = "Time", y = "Pupil change (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Percent of correct AEMs made during preswitch",breaks=c("1","2","3"),labels=c("correct > incorrect", "incorrect > correct", "correct=incorrect"))+
+  guides(color=FALSE)+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(labels = scales::percent,limits=c(-.1,.1),breaks=seq(-.1,.1,.02))
+
+#1 = more correct than incorrect AEMs, 2 = more incorrect than correct AEM, 3 = equal correct and incorrect AEM 
 ```
 
 pupil timecourse postswitch
 color by babies who made more correct AEMs than incorrect AEMs, and babies who made more incorrect than correct
 ```{r}
+#postswitch only!!!
+foo <- subset(orig.sample5, switch==2)
 
+#for each subject, calculate % correct AEM and % incorrect AEM
+doo <- ddply(foo,.(subID,trialtype.aem),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+doo1 <- subset(doo, trialtype.aem==1) #correct AEM
+doo2 <- subset(doo, trialtype.aem==2) #incorrect AEM
+doo.total <- ddply(doo,.(subID),summarise,totaltrials=sum(numoftrials,na.rm = TRUE))
+
+doo.total$percentcorrect <- 0
+for (j in 1:length(doo.total$subID)) { 
+x <- doo.total$subID[j]  
+z <- which(doo1$subID==x)
+if (length(z)==0) { #if doesn't match
+  doo.total$percentcorrect[j] <- 0
+} else {
+  doo.total$percentcorrect[j] <-doo1$numoftrials[z] / doo.total$totaltrials[j]
+}} 
+
+doo.total$percentincorrect <- 0
+for (j in 1:length(doo.total$subID)) { 
+x <- doo.total$subID[j]  
+z <- which(doo2$subID==x)
+if (length(z)==0) { #if doesn't match
+  doo.total$percentincorrect[j] <- 0
+} else {
+  doo.total$percentincorrect[j] <-doo2$numoftrials[z] / doo.total$totaltrials[j]
+}} 
+
+#code babies 1 = more correct than incorrect AEMs, 2 = more incorrect than correct AEM, 3 = equal correct and incorrect AEM 
+doo.total$subaem <- 0
+for (j in 1:length(doo.total$subID)) { 
+if (doo.total$percentcorrect[j] > doo.total$percentincorrect[j]) { 
+  doo.total$subaem[j] <- 1
+} 
+if (doo.total$percentcorrect[j] < doo.total$percentincorrect[j]) { 
+  doo.total$subaem[j] <- 2
+} 
+if (doo.total$percentcorrect[j] == doo.total$percentincorrect[j]) { #if doesn't match
+  doo.total$subaem[j] <- 3
+}   
+} 
+
+#histogram of % correct AEM
+ggplot(doo.total,aes(doo.total$percentcorrect))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent correct AEM in postswitch")+
+  scale_y_continuous(limits=c(0,20),breaks=seq(0,20,2))
+
+#histogram of % incorrect AEM
+ggplot(doo.total,aes(doo.total$percentincorrect))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent incorrect AEM in postswitch")+
+  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))
+
+#histogram of % subaem
+ggplot(doo.total,aes(doo.total$subaem))+
+  geom_histogram()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#categorize subjects
+subs <- unique(doo.total$subID)
+which(doo.total$subaem==2) #1  4  5  7  8 10 14 16 21 22 23 25
+which(doo.total$subaem==3) #2  3  6 12 13 15 17 20 24
+
+foo$subaem <- 1
+foo$subaem[foo$subID==subs[1] | foo$subID==subs[4] |foo$subID==subs[5] |foo$subID==subs[7] |foo$subID==subs[8]| foo$subID== subs[10]| foo$subID==subs[14] | foo$subID== subs[16]| foo$subID== subs[21]| foo$subID== subs[22]| foo$subID== subs[23]| foo$subID== subs[25]] <- 2
+
+foo$subaem[foo$subID==subs[2] | foo$subID==subs[3] | foo$subID==subs[6] |foo$subID==subs[12] |foo$subID==subs[13]| foo$subID== subs[15]| foo$subID==subs[17]| foo$subID==subs[20]| foo$subID==subs[24]] <- 3
+
+#pupil time course postswitch only
+boo1 <- ddply(foo,.(subID,subaem,TIMECODE),summarise,pupilsize=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across subs
+boo2 <- ddply(boo1,.(subaem,TIMECODE),summarise,pupilavg=mean(pupilsize,na.rm = TRUE),sepupil=sd(pupilsize, na.rm = TRUE)/sqrt(length(pupilsize))) #collapse across subs
+vlines <- c(250,1750,2550)
+
+ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(subaem),fill=factor(subaem)))+
+  geom_line()+theme_bw()+
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("Pupil timecourse postswitch")+
+  labs(x = "Time", y = "Pupil change (%)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))+
+  theme(legend.text=element_text(size=16),legend.title=element_text(size=16))+
+  geom_ribbon(aes(ymin=pupilavg-sepupil,ymax=pupilavg+sepupil),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_fill_discrete(name="Percent of correct AEMs made during preswitch",breaks=c("1","2","3"),labels=c("correct > incorrect", "incorrect > correct", "correct=incorrect"))+
+  guides(color=FALSE)+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(labels = scales::percent,limits=c(-.2,.2),breaks=seq(-.2,.2,.05))
+
+#1 = more correct than incorrect AEMs, 2 = more incorrect than correct AEM, 3 = equal correct and incorrect AEM 
 ```
 
 color = correct vs incorrect AEM
 x = time
 y = % looking to side
 facet wrap = above and below median
-also for preswitch vs postswitch
 ```{r}
-#preswitch
+#PRESWITCH
+lookscode <- pupilbreakdown
+#only care about 100ms timebins that has good data
+e1 <- subset(lookscode, lookattarget < 9) 
+#only care about preswitch
+e1 <- subset(lookscode,switch==1) 
 
-#postswitch
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+#Calculate proplooking for each type of gaze (target, center, distractor)
+e1$center <- 0
+e1$side <- 0
+e1$type2 <- e1$type
+e1$type2[e1$type==2] <- 1 #1 = AEM, 3 = no AEM
+
+e1$side[e1$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+e1$center[e1$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+e1$side[e1$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
+
+e1$median.aem <- 1 #below median
+subs <- unique(e1$subID)  
+#label in dataframe  
+e1$median.aem[e1$subID==subs[1] | e1$subID==subs[4] | e1$subID==subs[5] | e1$subID==subs[8] |e1$subID==subs[10]| e1$subID==subs[12]| e1$subID==subs[13]|  e1$subID==subs[15]| e1$subID==subs[16]| e1$subID==subs[18]| e1$subID==subs[19]| e1$subID==subs[23]] <- 2
+
+#correct vs incorrect AEM
+e2 <- ddply(e1,.(subID,type,timecode,median.aem),summarise,SideProp=mean(side,na.rm = TRUE),CentProp=mean(center,na.rm = TRUE))
+e2 <- subset(e2, type < 3)
+#collapse across subjects
+e33 <- ddply(e2,.(type,timecode,median.aem),summarise,
+            looking=mean(SideProp,na.rm = TRUE),
+            selooking=sd(SideProp, na.rm = TRUE)/sqrt(length(SideProp)))
+split <- c(`1` = "below median",`2` = "above median")
+
+ggplot(e33,aes(x=timecode,y=looking,color=factor(type),fill=factor(type)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("correct AEM vs incorrect AEM trial (preswitch)")+
+  labs(x = "Time", y = "% of looking to side")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=looking-selooking,ymax=looking+selooking),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels = scales::percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  guides(color=FALSE)+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_brewer(palette="Set1",name="Trial type",breaks=c("1","2"),labels=c("correct AEM", "incorrect AEM"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "bottom")+
+  facet_wrap(~median.aem,labeller = as_labeller(split),dir="v")
 ```
 
-correlation:
-x = % correct (# of correct AEM in preswitch / total number of trials in preswitch)
-y = pupil size during 1500-2000ms
-
-get r values
+color = correct vs incorrect AEM
+x = time
+y = % looking to side
+facet wrap = above and below median
 ```{r}
-#keep 0%
+#POSTSWITCH
+lookscode <- pupilbreakdown
+#only care about 100ms timebins that has good data
+e1 <- subset(lookscode, lookattarget < 9) 
+#only care about postswitch
+e1 <- subset(lookscode,switch==2) 
 
+#type 1 = correct AEM to target, 2 = incorrect AEM to distractor, 3 = no AEM
+#Calculate proplooking for each type of gaze (target, center, distractor)
+e1$center <- 0
+e1$side <- 0
+e1$type2 <- e1$type
+e1$type2[e1$type==2] <- 1 #1 = AEM, 3 = no AEM
 
-#remove 0%
+e1$side[e1$lookattarget == 1] <- 1 #if lookattarget == 1, then looking at target
+e1$center[e1$lookattarget == 5] <- 1 #if lookattarget == 5, then looking at center
+e1$side[e1$lookattarget == 0] <- 1 #if lookattarget == 0, then looking at distractor
 
+e1$median.aem <- 1 #below median
+subs <- unique(e1$subID)  
+#label in dataframe  
+e1$median.aem[e1$subID==subs[1] | e1$subID==subs[4] | e1$subID==subs[5] | e1$subID==subs[8] |e1$subID==subs[10]| e1$subID==subs[12]| e1$subID==subs[13]|  e1$subID==subs[15]| e1$subID==subs[16]| e1$subID==subs[18]| e1$subID==subs[19]| e1$subID==subs[23]] <- 2
+
+#correct vs incorrect AEM
+e2 <- ddply(e1,.(subID,type,timecode,median.aem),summarise,SideProp=mean(side,na.rm = TRUE),CentProp=mean(center,na.rm = TRUE))
+e2 <- subset(e2, type < 3)
+#collapse across subjects
+e33 <- ddply(e2,.(type,timecode,median.aem),summarise,
+            looking=mean(SideProp,na.rm = TRUE),
+            selooking=sd(SideProp, na.rm = TRUE)/sqrt(length(SideProp)))
+split <- c(`1` = "below median",`2` = "above median")
+
+ggplot(e33,aes(x=timecode,y=looking,color=factor(type),fill=factor(type)))+
+  geom_line()+theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("correct AEM vs incorrect AEM trial (postswitch)")+
+  labs(x = "Time", y = "% of looking to side")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  geom_ribbon(aes(ymin=looking-selooking,ymax=looking+selooking),alpha=0.4)+
+  geom_vline(xintercept = vlines)+
+  scale_x_continuous(limits=c(0,4000),breaks=seq(0,4000,500), expand = c(0, 0))+
+  scale_y_continuous(labels = scales::percent,limits=c(0,1),breaks=seq(0,1,0.2))+
+  guides(color=FALSE)+
+  theme(strip.text = element_text(size=16))+
+  scale_fill_brewer(palette="Set1",name="Trial type",breaks=c("1","2"),labels=c("correct AEM", "incorrect AEM"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "bottom")+
+  facet_wrap(~median.aem,labeller = as_labeller(split),dir="v")
 ```
 
-correlation:
-x = % correct (# of correct AEM in preswitch / total number of trials in preswitch)
-y = pupil size during 2500-4000
-
-get r values
-```{r}
-#keep 0%
-
-
-#remove 0%
-```
-
-x = percent correct AEM during preswitch
-y = percent incorrect AEM during post-switch
+X axis = % correct aem during pre-switch
+Y axis = % incorrect aem during post-switch
+for every subject
 ```{r}
 
 ```
