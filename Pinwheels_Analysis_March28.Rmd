@@ -1167,7 +1167,56 @@ ggplot(e33,aes(x=timecode,y=looking,color=factor(type),fill=factor(type)))+
 X axis = % correct aem during pre-switch
 Y axis = % incorrect aem during post-switch
 for every subject
+
 ```{r}
+#correct aem for preswitch only!!!
+doo <- ddply(orig.sample5,.(subID,trialtype.aem,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+doo1 <- subset(doo, switch==1) #preswitch
+doo2 <- subset(doo1, trialtype.aem==1) #correct AEMs in pre
+doo.total <- ddply(doo1,.(subID),summarise,totalpre=sum(numoftrials,na.rm = TRUE)) #total trials in pre
+
+doo.total$percentcorrect <- 0
+for (j in 1:length(doo.total$subID)) { 
+x <- doo.total$subID[j]  
+z <- which(doo2$subID==x)
+if (length(z)==0) { #if doesn't match
+  doo.total$percentcorrect[j] <- 0
+} else {
+  doo.total$percentcorrect[j] <-doo2$numoftrials[z] / doo.total$totalpre[j]
+}} 
+
+#incorrect aem for postswitch only!!!
+coo <- ddply(orig.sample5,.(subID,trialtype.aem,switch),summarise,numoftrials=length(unique(TRIAL_INDEX,na.rm = TRUE)))
+coo1 <- subset(coo, switch==2) #postswitch
+coo2 <- subset(coo1, trialtype.aem==1) #incorrect AEMs in post
+coo.total <- ddply(coo1,.(subID),summarise,totalpost=sum(numoftrials,na.rm = TRUE)) #total trials in post
+
+coo.total$percentincorrect <- 0
+for (j in 1:length(coo.total$subID)) { 
+x <- coo.total$subID[j]  
+z <- which(coo2$subID==x)
+if (length(z)==0) { #if doesn't match
+  coo.total$percentincorrect[j] <- 0
+} else {
+  coo.total$percentincorrect[j] <-coo2$numoftrials[z] / coo.total$totalpost[j]
+}} 
+
+#combine
+doo.total$percentincorrect <- coo.total$percentincorrect
+
+ggplot(doo.total,aes(x=percentcorrect,y=percentincorrect))+
+  geom_point(size=5)+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.line = element_line(colour = "black"))+
+  labs(x = "% of correct AEMs during pre-switch", y = "% of incorrect AEMs during post-switch")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=14),axis.text.y  = element_text(size=14))+
+  theme(legend.text=element_text(size=14),legend.title=element_text(size=14))+
+  guides(color=FALSE)+guides(fill=FALSE)+
+  stat_smooth(method=lm)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(labels = scales::percent,limits=c(0,.3),breaks=seq(0,.3,.1))+
+  scale_x_continuous(labels = scales::percent,limits=c(0,.4),breaks=seq(0,.4,.1))
 
 ```
 
