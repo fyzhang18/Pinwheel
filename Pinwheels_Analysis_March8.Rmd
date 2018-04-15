@@ -908,7 +908,7 @@ ttest.results8
 
 ```
 
-eccentricity timecourse plot for orig.sample2
+eccentricity timecourse plot 
 ```{r}
 # screen res is 1024 x 1280 (Y X)
 #a. Y coordinate timecourse, pre and post

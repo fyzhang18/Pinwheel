@@ -20,6 +20,7 @@ library(arm)
 library(RColorBrewer)
 library(lmerTest)
 library(boot)
+library(tidyverse)
 
 #load preprocessed data
 orig.sample2 <- read.csv("/Volumes/emberson/ResearchProjects/Pupillometry/Pinwheels/Data/Pinwheel_Infant_Preprocessed_RemovedOutliers_Nov28.csv")  #Nov28 has bad trials removed
@@ -475,7 +476,9 @@ ggplot(yfinal,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(b
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)
 
 cor.test(yfinal$pupildiff[yfinal$block==1], yfinal$percentcorrect[yfinal$block==1], alternative = "two.sided", method = "pearson")
 cor.test(yfinal$pupildiff[yfinal$block==2], yfinal$percentcorrect[yfinal$block==2], alternative = "two.sided", method = "pearson")
@@ -495,7 +498,9 @@ ggplot(yfinal2,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)
 
 cor.test(yfinal2$pupildiff[yfinal2$block==1], yfinal2$percentcorrect[yfinal2$block==1], alternative = "two.sided", method = "pearson")
 cor.test(yfinal2$pupildiff[yfinal2$block==2], yfinal2$percentcorrect[yfinal2$block==2], alternative = "two.sided", method = "pearson")
@@ -573,7 +578,9 @@ ggplot(yfinal,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(b
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)
 
 cor.test(yfinal$pupildiff[yfinal$block==1], yfinal$percentcorrect[yfinal$block==1], alternative = "two.sided", method = "pearson")
 cor.test(yfinal$pupildiff[yfinal$block==2], yfinal$percentcorrect[yfinal$block==2], alternative = "two.sided", method = "pearson")
@@ -593,7 +600,9 @@ ggplot(yfinal2,aes(x=percentcorrect,y=pupildiff,fill=factor(block),color=factor(
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)  
 
 cor.test(yfinal2$pupildiff[yfinal2$block==1], yfinal2$percentcorrect[yfinal2$block==1], alternative = "two.sided", method = "pearson")
 cor.test(yfinal2$pupildiff[yfinal2$block==2], yfinal2$percentcorrect[yfinal2$block==2], alternative = "two.sided", method = "pearson")
@@ -658,7 +667,9 @@ ggplot(ufinal,aes(x=percentcorrect.pre,y=percentcorrect.post))+
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)
 
 cor.test(ufinal$percentcorrect.pre, ufinal$percentcorrect.post, alternative = "two.sided", method = "pearson")
 
@@ -676,7 +687,9 @@ ggplot(ufinal2,aes(x=percentcorrect.pre,y=percentcorrect.post))+
   stat_smooth(method=lm)+
   theme(plot.title = element_text(hjust = 0.5))+
   theme(legend.position = "bottom")+
-  scale_color_discrete(name = "Block")
+  scale_color_discrete(name = "Block")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_x_continuous(labels = scales::percent)
 
 cor.test(ufinal2$percentcorrect.pre, ufinal2$percentcorrect.post, alternative = "two.sided", method = "pearson")
 
@@ -706,7 +719,8 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.pupil),fill=factor(
   guides(color=FALSE)+
   scale_color_manual(values = c("#f1af8f", "#2398a0","#acc2c7"))+
   scale_fill_manual(values = c("#f1af8f", "#2398a0","#acc2c7"),name="Trial breakdown",breaks=c("1","2","3"),labels=c("pupil match", "pupil mismatch","no AEM"))+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels = scales::percent,limits=c(-.1,.1),breaks=seq(-.1,.1,.05))
 
 #pre vs post
 boo1 <- ddply(orig.sample5,.(subID,switch,trialtype.pupil,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
@@ -732,7 +746,8 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.pupil),fill=factor(
   scale_color_manual(values = c("#f1af8f", "#2398a0","#acc2c7"))+
   scale_fill_manual(values = c("#f1af8f", "#2398a0","#acc2c7"),name="Trial breakdown",breaks=c("1","2","3"),labels=c("pupil match", "pupil mismatch","no AEM"))+
   theme(strip.text = element_text(size=16))+
-  theme(legend.position = "bottom")+facet_wrap(~switch,labeller = as_labeller(split))
+  theme(legend.position = "bottom")+facet_wrap(~switch,labeller = as_labeller(split))+
+  scale_y_continuous(labels = scales::percent,limits=c(-.2,.3),breaks=seq(-.2,.3,.1))
 
 ```
 
@@ -762,7 +777,8 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem),fill=factor(tr
   guides(color=FALSE)+
   scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","2","3"),labels=c("Correct AEM", "Incorrect AEM","No AEM"))+
   scale_color_brewer(palette="Set3")+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels = scales::percent,limits=c(-.1,.1),breaks=seq(-.1,.1,.05))
 
 #pre vs post
 boo1 <- ddply(orig.sample5,.(subID,switch,trialtype.aem,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
@@ -789,7 +805,8 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem),fill=factor(tr
   scale_color_brewer(palette="Set3")+
   theme(legend.position = "bottom")+
   theme(strip.text = element_text(size=16))+
-  facet_wrap(~switch,labeller = as_labeller(split))
+  facet_wrap(~switch,labeller = as_labeller(split))+
+  scale_y_continuous(labels = scales::percent,limits=c(-.2,.3),breaks=seq(-.2,.3,.1))
 
 ```
 
@@ -822,7 +839,8 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem2),fill=factor(t
   guides(color=FALSE)+
   scale_fill_brewer(palette="Set3",name="Sub-block",breaks=c("1","3"),labels=c("AEM", "No AEM"))+
   scale_color_brewer(palette="Set3")+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_y_continuous(labels = scales::percent,limits=c(-.1,.1),breaks=seq(-.1,.1,.05))
 
 #pre vs post
 boo1 <- ddply(coo,.(subID,switch,trialtype.aem2,TIMECODE),summarise,pupil=mean(PUPIL_CORRECTED,na.rm = TRUE)) #collapse across trials
@@ -850,6 +868,7 @@ ggplot(boo2,aes(x=TIMECODE,y=pupilavg,color=factor(trialtype.aem2),fill=factor(t
   theme(legend.position = "bottom")+
   theme(strip.text = element_text(size=16))+
   facet_wrap(~switch,labeller = as_labeller(split))
+  
 ```
 
 pupil timecourse preswitch
@@ -903,13 +922,21 @@ if (doo.total$percentcorrect[j] == doo.total$percentincorrect[j]) { #if doesn't 
 ggplot(doo.total,aes(doo.total$percentcorrect))+
   geom_histogram()+theme_bw()+
   theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent correct AEM in preswitch")+
-  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))
+  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))+
+  scale_x_continuous(labels = scales::percent)+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))
 
 #histogram of % incorrect AEM
 ggplot(doo.total,aes(doo.total$percentincorrect))+
   geom_histogram()+theme_bw()+
   theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ggtitle("Percent incorrect AEM in preswitch")+
-  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))
+  scale_y_continuous(limits=c(0,10),breaks=seq(0,10,1))+
+  scale_x_continuous(labels = scales::percent)+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=20),axis.text.y  = element_text(size=20))
 
 #histogram of % subaem
 ggplot(doo.total,aes(doo.total$subaem))+
@@ -1218,6 +1245,7 @@ ggplot(doo.total,aes(x=percentcorrect,y=percentincorrect))+
   scale_y_continuous(labels = scales::percent,limits=c(0,.3),breaks=seq(0,.3,.1))+
   scale_x_continuous(labels = scales::percent,limits=c(0,.4),breaks=seq(0,.4,.1))
 
+cor.test(doo.total$percentcorrect, doo.total$percentincorrect, alternative = "two.sided", method = "pearson")
 ```
 
 for correct and incorrect AEM, do % of trials per baby for pre vs post
