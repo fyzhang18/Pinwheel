@@ -56,7 +56,7 @@ orig.sample4 <- subset(orig.sample4, subID != 30)
 #orig.sample4 = excluded subjects
 ```
 
-AEM coding
+AEM coding using our criteria (looking to center first)
 ```{r}
 poo <- orig.sample4
 
@@ -164,21 +164,27 @@ for (j in 1:length(subs)) {
     }
   }
 
-pupilbreakdown <- x1
+aemcoding <- x1
 ```
 
 RT using minimum
 group correct and incorrect AEMs together
 0 = distractor, 1 = target, 5 = center, 9 = looking at distractor and center, 99 = no data collected
 ```{r}
-looks <- subset(pupilbreakdown, lookattarget ==0 | lookattarget ==1) #only keep distractor and target
+#only keep distractor and target
+looks <- subset(aemcoding, lookattarget ==0 | lookattarget ==1) 
 
-#if AEM is anything from 700-2700ms, then RT is everything ater 2700
+#if AEM is anything from 700-2700ms, then RT is everything after 2700
 look2 <- subset(looks, timecode > 2600)
 
-#now for every trial get the minimum time, when babies FIRST LOOKED
-coo <- ddply(look2,.(subID, trialnum,trialnum2,block,switch,looktocenter,type ),summarise,time=min(timecode,na.rm = TRUE))
-coo2 <- ddply(coo,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(look2,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo1 <- ddply(coo,.(subID,trialnum2,switch),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo2 <- ddply(coo1,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
 coo2$meantime2 <- coo2$meantime-2550
 
 ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)))+
@@ -201,15 +207,39 @@ ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)
 
 #correlation
 cor.test(coo2$trialnum2[coo2$switch==1], coo2$meantime2[coo2$switch==1], alternative = "two.sided", method = "pearson")
-#preswitch is not p = 0.2, r = -0.54
+#preswitch is not sig. p = 0.34, r = -0.42
 cor.test(coo2$trialnum2[coo2$switch==2], coo2$meantime2[coo2$switch==2], alternative = "two.sided", method = "pearson")
-#postswitch is significant p = 0.3, r = -0.41
+#postswitch is not sig. p = 0.06, r = -0.67
+
+#plot distribution
+coo1$meantime2 <- coo1$time-2550
+
+ggplot(coo1,aes(x=factor(trialnum2),y=meantime2,fill=factor(switch)))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side (correct + incorrect)")+
+  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  guides(color=FALSE)
 
 #combine pre-switch and post switch
-coo3 <- ddply(coo,.(trialnum2),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
-coo3$meantime2 <- coo3$meantime-2550
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(look2,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
 
-ggplot(coo3,aes(x=trialnum2,y=meantime2))+
+#average across blocks
+coo3 <- ddply(coo,.(subID,trialnum,trialnum2),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo4 <- ddply(coo3,.(trialnum2),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+coo4$meantime2 <- coo4$meantime-2550
+
+ggplot(coo4,aes(x=trialnum2,y=meantime2))+
   geom_line()+
   theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
   ggtitle("When babies look to side (correct + incorrect)")+
@@ -225,43 +255,60 @@ ggplot(coo3,aes(x=trialnum2,y=meantime2))+
   theme(plot.title = element_text(hjust = 0.5))
 
 #correlation
-cor.test(coo3$trialnum2, coo3$meantime2, alternative = "two.sided", method = "pearson")
+cor.test(coo4$trialnum2, coo4$meantime2, alternative = "two.sided", method = "pearson")
 #almost sig p = 0.21, r = -0.5
+
+#plot distribution
+coo3$meantime2 <- coo3$time-2550
+
+ggplot(coo3,aes(x=factor(trialnum2),y=meantime2))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side (correct + incorrect)")+
+  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(limits=c(0,1500),breaks=seq(0,1500,250))
 ```
 
 How to deal with AEM trials?
-1. removing AEM trials completely
-2. negative RTs, 
-Also plot distribution for both
+1. negative RTs after removing AEM trials completely and removing trials where babies didn't look to center first
+2. negative RTs for all trials
+3. negative RTs for trials where babies look to center first
 ```{r}
-#remove AEM trials 
-
+#1. negative RTs after removing AEM trials completely
 #type 1 = pupil match, 2 = pupil mismatch, 3 = no AEM
+pupilbreakdown2 <- subset(aemcoding, type ==3)
+pupilbreakdown2 <- subset(pupilbreakdown2,looktocenter ==1 )
 
-pupilbreakdown2 <- subset(pupilbreakdown, type > 1)
 #only keep distractor and target
 looks <- subset(pupilbreakdown2, lookattarget ==0 | lookattarget ==1) 
 
-#if AEM is anything from 700-2700ms, then RT is everything ater 2700
-look2 <- subset(looks, timecode > 2600)
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
 
-#now for every trial get the minimum time, when babies FIRST LOOKED
-coo <- ddply(look2,.(subID, trialnum,trialnum2,block,switch,looktocenter,type ),summarise,time=min(timecode,na.rm = TRUE))
-coo2 <- ddply(coo,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+#average across blocks
+coo1 <- ddply(coo,.(subID,trialnum2,switch),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo2 <- ddply(coo1,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
 coo2$meantime2 <- coo2$meantime-2550
 
 ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)))+
   geom_line()+
   theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
-  ggtitle("When babies look to side (correct + incorrect)")+
-  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  ggtitle("When babies look to side (no AEM trials)")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
   theme(plot.title = element_text(face="bold", size=20, hjust=0))+
   theme(axis.title = element_text(face="bold", size=20))+ 
   theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
   theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
   geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
   scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
-  scale_y_continuous(limits=c(400,800),breaks=seq(400,800,50))+
+  scale_y_continuous(limits=c(-2500,1000),breaks=seq(-2500,1000,500))+
   guides(color=FALSE)+
   scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
   scale_color_brewer(palette="Set1")+
@@ -270,37 +317,108 @@ ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)
 
 #correlation
 cor.test(coo2$trialnum2[coo2$switch==1], coo2$meantime2[coo2$switch==1], alternative = "two.sided", method = "pearson")
-#preswitch is not p = 0.17, r = -0.58
+#preswitch is not sig. p = 0.16, r = 0.58
 cor.test(coo2$trialnum2[coo2$switch==2], coo2$meantime2[coo2$switch==2], alternative = "two.sided", method = "pearson")
-#postswitch is significant p = 0.35, r = -0.38
+#postswitch is not sig. p = 0.14, r = 0.56
+
+#plot distribution
+coo1$meantime2 <- coo1$time-2550
+
+ggplot(coo1,aes(x=factor(trialnum2),y=meantime2,fill=factor(switch)))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  guides(color=FALSE)
+
+#combine pre-switch and post switch
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo3 <- ddply(coo,.(subID,trialnum,trialnum2),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo4 <- ddply(coo3,.(trialnum2),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+coo4$meantime2 <- coo4$meantime-2550
+
+ggplot(coo4,aes(x=trialnum2,y=meantime2))+
+  geom_line()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side (w/o AEM trials)")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
+  scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
+  scale_y_continuous(limits=c(-2500,0),breaks=seq(-2500,0,250))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#correlation
+cor.test(coo4$trialnum2, coo4$meantime2, alternative = "two.sided", method = "pearson")
+#almost sig p = 0.07, r = 0.65
+
+#plot distribution
+coo3$meantime2 <- coo3$time-2550
+
+ggplot(coo3,aes(x=factor(trialnum2),y=meantime2))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side (w/o AEM trials)")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(limits=c(-2500,1500),breaks=seq(-2500,1500,250))
 ```
 
 How to deal with AEM trials?
-1. removing AEM trials completely
-2. negative RTs, 
-Also plot distribution for both
+1. negative RTs after removing AEM trials completely and removing trials where babies didn't look to center first
+2. negative RTs for all trials
+3. negative RTs for trials where babies look to center first
 ```{r}
-#negative RTs
+#2. negative RTs for all trials
 #only keep distractor and target
-looks <- subset(pupilbreakdown2, lookattarget ==0 | lookattarget ==1) 
-looks2 <- subset(looks,looktocenter==1 )
-#now for every trial get the minimum time, when babies FIRST LOOKED
-coo <- ddply(looks,.(subID, trialnum,trialnum2,block,switch,looktocenter,type ),summarise,time=min(timecode,na.rm = TRUE))
-coo2 <- ddply(coo,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+looks <- subset(aemcoding, lookattarget ==0 | lookattarget ==1) 
+
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo1 <- ddply(coo,.(subID,trialnum2,switch),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo2 <- ddply(coo1,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
 coo2$meantime2 <- coo2$meantime-2550
+coo2$meantime3 <- abs(coo2$meantime2)
 
 ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)))+
   geom_line()+
   theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
-  ggtitle("When babies look to side (correct + incorrect)")+
-  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
   theme(plot.title = element_text(face="bold", size=20, hjust=0))+
   theme(axis.title = element_text(face="bold", size=20))+ 
   theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
   theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
   geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
   scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
-  scale_y_continuous(limits=c(400,800),breaks=seq(400,800,50))+
+  scale_y_continuous(limits=c(-2500,0),breaks=seq(-2500,0,250))+
   guides(color=FALSE)+
   scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
   scale_color_brewer(palette="Set1")+
@@ -309,11 +427,184 @@ ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)
 
 #correlation
 cor.test(coo2$trialnum2[coo2$switch==1], coo2$meantime2[coo2$switch==1], alternative = "two.sided", method = "pearson")
-#preswitch is not p = 0.26, r = -0.48
+#preswitch is not sig. p = 0.09, r = 0.68
 cor.test(coo2$trialnum2[coo2$switch==2], coo2$meantime2[coo2$switch==2], alternative = "two.sided", method = "pearson")
-#postswitch is significant p = 0.04, r = -0.73
+#postswitch is not sig. p = 0.54, r = 0.25
+
+#plot distribution
+coo1$meantime2 <- coo1$time-2550
+
+ggplot(coo1,aes(x=factor(trialnum2),y=meantime2,fill=factor(switch)))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  guides(color=FALSE)+
+  scale_y_continuous(limits=c(-2500,500),breaks=seq(-2500,500,250))
+
+#combine pre-switch and post switch
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo3 <- ddply(coo,.(subID,trialnum,trialnum2),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo4 <- ddply(coo3,.(trialnum2),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+coo4$meantime2 <- coo4$meantime-2550
+
+ggplot(coo4,aes(x=trialnum2,y=meantime2))+
+  geom_line()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
+  scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
+  scale_y_continuous(limits=c(-2500,0),breaks=seq(-2500,0,250))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#correlation
+cor.test(coo4$trialnum2, coo4$meantime2, alternative = "two.sided", method = "pearson")
+#almost sig p = 0.17, r = -0.53
+
+#plot distribution
+coo3$meantime2 <- coo3$time-2550
+
+ggplot(coo3,aes(x=factor(trialnum2),y=meantime2))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time after target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(limits=c(-2500,1500),breaks=seq(-2500,1500,250))
 ```
 
+
+How to deal with AEM trials?
+1. negative RTs after removing AEM trials completely and removing trials where babies didn't look to center first
+2. negative RTs for all trials
+3. negative RTs for trials where babies look to center first
+```{r}
+#3. negative RTs for trials where babies look to center first
+look1 <- subset(aemcoding, looktocenter==1)
+
+#only keep distractor and target
+looks <- subset(look1, lookattarget ==0 | lookattarget ==1) 
+
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo1 <- ddply(coo,.(subID,trialnum2,switch),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo2 <- ddply(coo1,.(trialnum2,switch),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+coo2$meantime2 <- coo2$meantime-2550
+coo2$meantime3 <- abs(coo2$meantime2)
+
+ggplot(coo2,aes(x=trialnum2,y=meantime2,color=factor(switch),fill=factor(switch)))+
+  geom_line()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
+  scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
+  scale_y_continuous(limits=c(-2500,0),breaks=seq(-2500,0,250))+
+  guides(color=FALSE)+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  scale_color_brewer(palette="Set1")+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#correlation
+cor.test(coo2$trialnum2[coo2$switch==1], coo2$meantime2[coo2$switch==1], alternative = "two.sided", method = "pearson")
+#preswitch is not sig. p = 0.17, r = 0.58
+cor.test(coo2$trialnum2[coo2$switch==2], coo2$meantime2[coo2$switch==2], alternative = "two.sided", method = "pearson")
+#postswitch is not sig. p = 0.25, r = 0.46
+
+#plot distribution
+coo1$meantime2 <- coo1$time-2550
+
+ggplot(coo1,aes(x=factor(trialnum2),y=meantime2,fill=factor(switch)))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  scale_fill_brewer(palette="Set1",name="Switch",breaks=c("1","2"),labels=c("Pre-switch", "Post-switch"))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  guides(color=FALSE)+
+  scale_y_continuous(limits=c(-2500,1000),breaks=seq(-2500,1000,500))
+
+#combine pre-switch and post switch
+#every trial get the minimum time, when babies FIRST LOOKED to side
+coo <- ddply(looks,.(subID,trialnum,trialnum2,block,switch),summarise,time=min(timecode,na.rm = TRUE))
+
+#average across blocks
+coo3 <- ddply(coo,.(subID,trialnum,trialnum2),summarise,time=mean(time,na.rm = TRUE))
+
+#average across subjects
+coo4 <- ddply(coo3,.(trialnum2),summarise,meantime=mean(time,na.rm = TRUE),setime=sd(time, na.rm = TRUE)/sqrt(length(time)))
+coo4$meantime2 <- coo4$meantime-2550
+
+ggplot(coo4,aes(x=trialnum2,y=meantime2))+
+  geom_line()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  geom_ribbon(aes(ymin=meantime2-setime,ymax=meantime2+setime),alpha=0.4)+
+  scale_x_continuous(limits=c(1,8),breaks=seq(1,8,1))+
+  scale_y_continuous(limits=c(-2500,0),breaks=seq(-2500,0,250))+
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#correlation
+cor.test(coo4$trialnum2, coo4$meantime2, alternative = "two.sided", method = "pearson")
+#almost sig p = 0.18, r = 0.52
+
+#plot distribution
+coo3$meantime2 <- coo3$time-2550
+
+ggplot(coo3,aes(x=factor(trialnum2),y=meantime2))+
+  geom_boxplot()+
+  theme_bw()+theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  ggtitle("When babies look to side")+
+  labs(x = "Trial number", y = "Time BEFORE target appears (ms)")+
+  theme(plot.title = element_text(face="bold", size=20, hjust=0))+
+  theme(axis.title = element_text(face="bold", size=20))+ 
+  theme(axis.text.x  = element_text(size=16),axis.text.y  = element_text(size=16))+
+  theme(legend.text=element_text(size=20),legend.title=element_text(size=20))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_y_continuous(limits=c(-2500,1500),breaks=seq(-2500,1500,250))
+```
 
 RT
 only correct 
