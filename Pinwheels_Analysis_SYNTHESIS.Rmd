@@ -1,7 +1,7 @@
 ---
-title: "Untitled"
+title: "Pinwheels Final"
 author: "Felicia Zhang"
-date: '2018-01-24'
+date: '2018-08-17'
 output: html_document
 ---
 
@@ -374,6 +374,9 @@ ggplot(moo,aes(x=factor(subID),y=percent,color=factor(trialtype),fill=factor(tri
   theme(legend.position = "bottom")+
   scale_y_continuous(labels = scales::percent,limits=c(0,1),breaks=seq(0,1,.2))
 
+avgAEM <- mean(moo$percent[moo$trialtype==3])
+avgIncorrectAEM <- mean(moo$percent[moo$trialtype==2])
+avgNoAEM <- mean(moo$percent[moo$trialtype==1])
 ```
 
 summary graph: pupil match/mismatch percentage for each subject
@@ -625,7 +628,8 @@ ggplot(efinal,aes(x=timecode,y=looking,color=factor(group),fill=factor(group)))+
   guides(color=FALSE)+
   scale_fill_brewer(palette="Set1",name="Where are babies looking",breaks=c("1","2","3"),labels=c("Correct side", "Center","Wrong side"))+
   scale_color_brewer(palette="Set1")+
-  theme(legend.position = "top")
+  theme(legend.position = "top")+
+  theme(plot.title = element_text(hjust = 0.5))
 
 #by switch
 e2 <- ddply(lookscode,.(subID,switch,timecode),summarise,TargProp=mean(target,na.rm = TRUE),CentProp=mean(center,na.rm = TRUE),DistProp=mean(distractor,na.rm = TRUE))
